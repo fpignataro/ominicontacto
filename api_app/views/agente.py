@@ -24,6 +24,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import View
 from django.utils import timezone
+from django.apps import apps
 
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
@@ -645,3 +646,40 @@ class ApiAgentesParaTransferencia(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return SupervisorActivityAmiManager().obtener_agentes_activos()
+
+
+class ApiConsultativeConferHold(APIView):
+    permission_classes = (TienePermisoOML, )
+    authentication_classes = (SessionAuthentication, ExpiringTokenAuthentication, )
+    renderer_classes = (JSONRenderer, )
+    http_method_names = ['post']
+
+    def post(self, request):
+        callid = self.request.POST.get('callid', None)
+        if not callid:
+            return Response(data={'status': 'ERROR',
+                                  'message': _('Campo requerido: "{0}"').format('callid')})
+        action = self.request.POST.get('action', None)
+        if not action or action not in ['hold', 'unhold']:
+            return Response(data={'status': 'ERROR',
+                                  'message': _('Campo requerido: "{0}"').format('action')})
+        target = self.request.POST.get('target', None)
+        if not target or target not in ['client', 'consultant']:
+            return Response(data={'status': 'ERROR',
+                                  'message': _('Campo requerido: "{0}"').format('target')})
+
+        if not apps.is_installed("premium_reports_app"):
+            data = {'status': 'ERROR', 'message': _('Permiso denegado')}
+            return Response(data=data)
+
+        from premium_reports_app.views import conference_mute
+        result = conference_mute(callid, action, target)
+        if result == 'OK':
+            data = {'status': 'OK'}
+            return Response(data=data)
+        if result == 'DENIED':
+            data = {'status': 'ERROR', 'message': _('Permiso denegado')}
+            return Response(data=data)
+        else:
+            data = {'status': 'ERROR', 'message': result}
+            return Response(data=data)
