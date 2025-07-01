@@ -31,7 +31,7 @@ from api_app.views.administrador import (
     SubirBaseContactosView, EnviarKeyRegistro)
 from api_app.views.supervisor import (
     SupervisorCampanasActivasViewSet, AgentesStatusAPIView, UsuariosAgentesAPIView,
-    StatusCampanasSalientesView, InteraccionDeSupervisorSobreAgenteView,
+    InteraccionDeSupervisorSobreAgenteView,
     LlamadasDeCampanaView, CalificacionesDeCampanaView,
     ReasignarAgendaContactoView, DataAgendaContactoView,
     ExportarCSVContactados, ExportarCSVCalificados, ExportarCSVNoAtendidos,
@@ -167,9 +167,6 @@ urlpatterns = [
     re_path(r'api/v1/supervision/status_campanas/entrantes/$',
             login_required(StatusCampanasEntrantesView.as_view()),
             name='api_supervision_campanas_entrantes'),
-    re_path(r'api/v1/supervision/status_campanas/salientes/$',
-            login_required(StatusCampanasSalientesView.as_view()),
-            name='api_supervision_campanas_salientes'),
     path('api/v1/supervision/action_on_agent/<int:pk>/',
          InteraccionDeSupervisorSobreAgenteView.as_view(),
          name='api_accion_sobre_agente'),
