@@ -15,11 +15,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
+
+import logging
 from django.conf import settings
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.layers import get_channel_layer
-from ominicontacto_app.services.dialer.notification.subscription import (
-    DialerStatsSubscriptionManager, )
+from ominicontacto_app.services.dialer.notification.subscription \
+    import DialerStatsSubscriptionManager
+from supervision_app.services.data_management import SupervisionDataManager
+from ominicontacto_app.services.redis.connection import create_redis_connection
+
+logger = logging.getLogger(__name__)
 
 
 class AgentConsole(AsyncJsonWebsocketConsumer):
@@ -138,6 +144,55 @@ class DialerStatsConsumer(AsyncJsonWebsocketConsumer):
         if hasattr(self, 'user') and self.user.is_authenticated \
                 and self.user.get_supervisor_profile():
             self.subscription_manager.remove_subscription(self.user)
+
+    async def broadcast(self, event):
+        await self.send_json(event['payload'])
+
+
+class SupervisionConsumer(AsyncJsonWebsocketConsumer):
+
+    GROUP_USER_CLS = 'supervision'
+    GROUP_USER_OBJ = 'supervision-{user_id}'
+    GROUPS = [
+        GROUP_USER_CLS,
+        GROUP_USER_OBJ,
+    ]
+    OMNIDIALER_USER_ID = 'omnidialer'
+
+    def __init__(self):
+        super(SupervisionConsumer, self).__init__()
+        self.redis_oml_connection = create_redis_connection(db=0)
+        self.redis_calldata_connection = create_redis_connection(db=2)
+        self.data_manager = SupervisionDataManager(self.redis_oml_connection,
+                                                   self.redis_calldata_connection)
+
+    async def connect(self):
+        try:
+            self.section = self.scope['url_route']['kwargs']['section']
+            if self.section not in self.data_manager.SECTIONS:
+                return await self.close()
+            self.user = self.scope['user']
+            if self.user.is_authenticated and self.user.get_supervisor_profile():
+                for group in self.GROUPS:
+                    await self.channel_layer.group_add(
+                        group.format(user_id=self.user.id), self.channel_name)
+                await self.accept()
+                initial_data = self.data_manager.add_subscription(self.user, self.section)
+                await self.send_json({'initial_data': initial_data})
+                return
+            return await self.close()
+        except Exception as e:
+            logger.error(e, exc_info=True)
+            return await self.close()
+
+    async def disconnect(self, close_code):
+        self.user = self.scope['user']
+
+        for group in self.GROUPS:
+            await self.channel_layer.group_discard(
+                group.format(user_id=self.user.id), self.channel_name)
+        if self.user.is_authenticated and self.user.get_supervisor_profile():
+            self.data_manager.remove_subscription(self.user, self.section)
 
     async def broadcast(self, event):
         await self.send_json(event['payload'])

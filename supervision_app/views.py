@@ -94,10 +94,7 @@ class SupervisionCampanasSalientesView(TemplateView):
         campanas = campanas.filter(type__in=[Campana.TYPE_DIALER,
                                              Campana.TYPE_PREVIEW,
                                              Campana.TYPE_MANUAL]).order_by('id')
-        context['campanas'] = ",".join([x.nombre for x in campanas])
-        context['campanas_ids'] = ",".join([str(x.id) for x in campanas])
-        RedisGearsService().registra_stream_supervisor_salientes(
-            supervisor.id, context['campanas_ids'], context['campanas'])
+        context['campanas'] = {x.id: {'name': x.nombre, 'target': x.objetivo} for x in campanas}
         return context
 
 
