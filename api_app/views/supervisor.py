@@ -63,7 +63,6 @@ from ominicontacto_app.services.reporte_resultados_de_base_csv import (
 from ominicontacto_app.services.reporte_resultados_de_base import (
     ReporteContactacionesCSV
 )
-from reportes_app.reportes.reporte_llamadas_salientes import ReporteLlamadasSalienteFamily
 from ominicontacto_app.services.reporte_respuestas_formulario import (
     ReporteFormularioGestionCampanaCSV)
 from ominicontacto_app.services.reporte_campana_calificacion import ReporteCalificacionesCampanaCSV
@@ -242,34 +241,6 @@ class StatusCampanasEntrantesView(APIView):
         reporte = ReporteDeLLamadasEntrantesDeSupervision(request.user)
         return Response(data={'errors': None,
                               'data': reporte.estadisticas})
-
-
-class StatusCampanasSalientesView(APIView):
-    permission_classes = (TienePermisoOML, )
-    renderer_classes = (JSONRenderer, )
-    http_method_names = ['get']
-
-    def _obtener_datos_campanas(self, user):
-        redis_saliente = ReporteLlamadasSalienteFamily()
-        if not user.is_supervisor:
-            campanas = Campana.objects.all()
-        else:
-            campanas = user.get_supervisor_profile().obtener_campanas_asignadas_activas()
-        query_campanas = campanas.filter(
-            type__in=[Campana.TYPE_DIALER,
-                      Campana.TYPE_PREVIEW,
-                      Campana.TYPE_MANUAL])
-        data_saliente = []
-        for campana in query_campanas:
-            estadisticas = redis_saliente.get_value(campana, 'ESTADISTICAS')
-            if estadisticas:
-                data_saliente.append(json.loads(estadisticas))
-        return data_saliente
-
-    def get(self, request):
-        supervisor_pk = request.user
-        datos_campana = self._obtener_datos_campanas(supervisor_pk)
-        return Response(data=datos_campana)
 
 
 class InteraccionDeSupervisorSobreAgenteView(APIView):

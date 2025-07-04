@@ -20,7 +20,8 @@ import time
 import json
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from notification_app.consumers import AgentConsole, AgentConsoleWhatsapp, DialerStatsConsumer
+from notification_app.consumers import \
+    AgentConsole, AgentConsoleWhatsapp, DialerStatsConsumer, SupervisionConsumer
 from ominicontacto_app.services.redis.redis_streams import RedisStreams
 MESSAGE_SENDERS = {
     'AGENT': 0,
@@ -292,3 +293,35 @@ class DialerStatsNotifier:
 
     async def notify(self, event_data, user_id):
         return await self.async_send_message(type='stats', message=event_data, user_id=user_id)
+
+
+class SupervisionNotifier:
+
+    def get_group_name(self, user_id=None):
+        if user_id is not None:
+            return SupervisionConsumer.GROUP_USER_OBJ.format(user_id=user_id)
+        else:
+            return SupervisionConsumer.GROUP_USER_CLS
+
+    async def send_message(self, type, message, user_id=None):
+        await get_channel_layer().group_send(
+            self.get_group_name(user_id),
+            {
+                'type': 'broadcast',
+                'payload': {
+                    'type': type,
+                    'args': message
+                }
+            })
+
+    def sync_send_message(self, type, message, user_id=None):
+        async_to_sync(
+            get_channel_layer().group_send)(
+                self.get_group_name(user_id),
+                {
+                    'type': 'broadcast',
+                    'payload': {
+                        'type': type,
+                        'args': message
+                    }
+                })
