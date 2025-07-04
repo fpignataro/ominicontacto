@@ -24,4 +24,6 @@ websocket_urlpatterns = [
     path('channels/agent-console-whatsapp', consumers.AgentConsoleWhatsapp.as_asgi()),
     path('channels/omnidialer', consumers.DialerStatsConsumer.as_asgi(), name='c1'),
     path('channels/omnidialer/<secret>', consumers.DialerStatsConsumer.as_asgi(), name='c2'),
+    path('channels/supervision/<section>', consumers.SupervisionConsumer.as_asgi(),
+         name='supervision'),
 ]

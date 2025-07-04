@@ -55,8 +55,6 @@ class ApiAppConfig(AppConfig):
              'roles': ['Administrador', 'Gerente', 'Supervisor', ]},
             {'nombre': 'api_supervision_campanas_entrantes',
              'roles': ['Administrador', 'Gerente', 'Supervisor', 'Referente', ]},
-            {'nombre': 'api_supervision_campanas_salientes',
-             'roles': ['Administrador', 'Gerente', 'Supervisor', 'Referente', ]},
             {'nombre': 'api_accion_sobre_agente',
              'roles': ['Administrador', 'Gerente', 'Supervisor', ]},
             {'nombre': 'api_supervision_llamadas_campana',
@@ -356,9 +354,6 @@ class ApiAppConfig(AppConfig):
              'version': '2.4.3'},
         'api_supervision_campanas_entrantes':
             {'descripcion': _('Reporte de llamadas entrantes de supervisión.'), 'version': '1.7.0'},
-        'api_supervision_campanas_salientes':
-            {'descripcion': _('Reporte de llamadas salientes no dialer de supervisión.'),
-             'version': '1.7.0'},
         'api_accion_sobre_agente':
             {'descripcion':
              _('Ejecuta acciones de supervisión sobre agente (Deslogueo, pausas, etc..)'),
