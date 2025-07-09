@@ -18,14 +18,11 @@
 
 */
 /* global Urls */
-/* global create_node */
 /* global gettext */
-/* global moment */
 
 var campaigns;
 var table_outbounds;
 var table_data = [];
-var dataAux = [];
 
 var rws;
 

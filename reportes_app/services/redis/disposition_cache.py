@@ -29,10 +29,14 @@ DISPOSITIONDATA_CAMP_KEY = 'OML:DISPOSITIONDATA:CAMP:{0}'
 
 class CampaignDispositionsCache:
 
+    def __init__(self, redis_connection=None):
+        self._redis_connection = None
+
     @property
     def redis_connection(self):
         if self._redis_connection is None:
             self._redis_connection = create_redis_connection(db=2)
+        return self._redis_connection
 
     def record_disposition(self, campaign_id, is_engaged):
         redis_key = DISPOSITIONDATA_CAMP_KEY.format(campaign_id)
