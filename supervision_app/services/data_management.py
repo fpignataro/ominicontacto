@@ -16,6 +16,7 @@
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 
 from ominicontacto_app.models import Campana
+from reportes_app.models import LlamadaLog
 
 
 def get_event_subscription_key(event_code):
@@ -76,6 +77,9 @@ class AbstractDataManager():
         self.redis_calldata_connection = redis_calldata_connection
         self.redis_oml_connection = redis_oml_connection
 
+    def _manager_id(self, user):
+        return f'{self.ID}:{user.id}'
+
     def subscribe(self, campaigns, user):
         raise NotImplementedError()
 
@@ -86,34 +90,169 @@ class AbstractDataManager():
 class AgentsDataManager(AbstractDataManager):
     ID = 'AGENTS'
 
-    def _manager_id(self, user):
-        return f'{self.ID}:{user.id}'
-
 
 class DialerDataManager(AbstractDataManager):
     ID = 'DIALER'
+    CALL_EVENTS = ('DIAL', 'ANSWER', ) + LlamadaLog.EVENTOS_NO_CONEXION \
+        + LlamadaLog.EVENTOS_NO_CONTACTACION \
+        + LlamadaLog.EVENTOS_NO_DIALOGO
 
-    def _manager_id(self, user):
-        return f'{self.ID}:{user.id}'
+    def subscribe(self, campaigns, user):
+        manager_id = self._manager_id(user)
+        print('MANAGER_ID = ', manager_id)
+        initial_data = {}
+
+        campaigns = campaigns.filter(type=Campana.TYPE_DIALER)
+        for campaign in campaigns:
+            # Call Events
+            for event in self.CALL_EVENTS:
+                event_code = f'CAMP:{campaign.id}:{event}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.sadd(key, manager_id)
+            # Disposiion Events
+            event_code = f'DISPOSITION:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+
+            initial_data[campaign.id] = self._get_initial_data(campaign)
+
+        # TODO Analizar solo enviar data de campañas con datos
+        return initial_data
+
+    def unsubscribe(self, campaign, user):
+        # Analizar recorrer todas las suscripciones usando un
+        # scan('OML:SUPERVISION:EVENT_SUBSCRIPTIONS:*') eliminando el manager_id de todas.
+        # Así no quedarian suscripciones fantasmas en caso de que cambien asignaciones de campañas.
+
+        manager_id = self._manager_id(user)
+        # CAMP event Types
+        for event in self.CALL_EVENTS:
+            event_code = f'CAMP:{campaign.id}:{event}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+        # DISPOSITION
+        event_code = f'DISPOSITIONS:{campaign.id}'
+        key = get_event_subscription_key(event_code)
+        self.redis_calldata_connection.srem(key, manager_id)
+
+    def _get_initial_data(self, campaign):
+        calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
+        response = self.redis_calldata_connection.hgetall(calldata_key)
+        dialed = 0
+        attended = 0
+        not_attended = 0
+        amd = 0
+        connections_lost = 0
+        dispositions = 0
+        status = campaign.estado
+        # pending =  0  # TODO: Obtener segun el dialer
+
+        # in_call = 0   # TODO: Se puede calcular llamadas en curso haciendo:
+        #               'DIAL' + 'ANSWER' + 'CONNECT' + 'ENTERQUEUE'
+        #               - EVENTOS_NO_CONEXION - EVENTOS_FIN_CONEXION
+        #    Agregar DISCLAIMER: Posiblemente con transferencias la linea siga "ocupada" pero no
+        #                     cuente como conectada...
+
+        # Get CALLDATA sums
+        for key, value in response.items():
+            _key = key.split(':')  # CALL_TYPE:<call_type>:<event>
+            print(key)
+            if _key[1] == str(LlamadaLog.LLAMADA_DIALER):  # call_type
+                event = _key[-1]
+                if event == 'DIAL':
+                    dialed = value
+                elif event == 'CONNECT':
+                    attended = value
+                elif event in LlamadaLog.EVENTOS_NO_CONTACTACION:
+                    not_attended += int(value)
+                elif event in LlamadaLog.EVENTOS_NO_DIALOGO:
+                    connections_lost += int(value)
+                    if event == 'AMD':
+                        amd = value
+        # Get dispositions
+        dispositiondata_key = 'OML:DISPOSITIONDATA:CAMP:{0}'.format(campaign.id)
+        response = self.redis_calldata_connection.hget(dispositiondata_key, 'ENGAGED')
+        if response:
+            dispositions = response
+
+        return {
+            'dialed': dialed,
+            'attended': attended,
+            'not_attended': not_attended,
+            'amd': amd,
+            'connections_lost': connections_lost,
+            'dispositions': dispositions,
+            'status': status,
+        }
+
+    def update(self, event_data):
+        print('Update for: ', event_data)
+        if event_data['type'] == 'CAMP':
+            if event_data['call_type'] != str(LlamadaLog.LLAMADA_DIALER):
+                return
+            if event_data['event'] == 'DIAL':
+                return {'campaign_id': event_data['id'], 'field': 'dialed'}
+            if event_data['event'] == 'CONNECT':
+                return {'campaign_id': event_data['id'], 'field': 'attended'}
+            if event_data['event'] in LlamadaLog.EVENTOS_NO_CONTACTACION:
+                return {'campaign_id': event_data['id'], 'field': 'not_attended'}
+            if event_data['event'] == 'AMD':
+                return {'campaign_id': event_data['id'], 'field': 'amd'}
+                # En este caso, incrementar también connections_lost
+            if event_data['event'] in LlamadaLog.EVENTOS_NO_DIALOGO:
+                return {'campaign_id': event_data['id'], 'field': 'connections_lost'}
+        if event_data['type'] == 'DISPOSITION':
+            if event_data['engaged']:
+                return {'campaign_id': event_data['id'], 'field': 'dispositions'}
+
+    # ================================================
+    # TODO: ESTE CODIGO QUEDA COMO REFERENCIA DE COMO SE CALCULABA ANTES - Borrarlo
+    # def _contabilizar_llamadas_pendientes(self):
+    #     dialer_service = get_dialer_service()
+    #     pendientes_por_id = dialer_service.obtener_llamadas_pendientes_por_id(self.campanas)
+    #     for campana_id, pendientes in pendientes_por_id.items():
+    #         if campana_id not in self.estadisticas:
+    #             self._inicializar_conteo_de_campana(campana_id)
+    #         self.estadisticas[campana_id]['pendientes'] = pendientes
+
+    # def _contabilizar_llamadas_en_curso(self):
+    #     campanas_ids = []
+    #     for campana_id, campana in self.campanas.items():
+    #         if campana.estado == Campana.ESTADO_ACTIVA:
+    #             campanas_ids.append(str(campana_id))
+    #     if not campanas_ids:
+    #         return
+    #     campanas_ids = ','.join(campanas_ids)
+
+    #     # Busco llamadas cuyo ultimo evento sea de llamada en curso
+    #     sql = """
+    #         SELECT l1.campana_id, COUNT(*) from reportes_app_llamadalog l1
+    #         WHERE l1.event IN ('DIAL', 'ANSWER', 'CONNECT', 'ENTERQUEUE') AND l1.id IN (
+    #             SELECT MAX(l2.id) FROM reportes_app_llamadalog l2
+    #             WHERE l2.campana_id in ({0}) AND l2.tipo_llamada = '{1}' AND
+    #             l2.time BETWEEN %(fecha_desde)s AND %(fecha_hasta)s
+    #             GROUP BY l2.callid
+    #           )
+    #         GROUP BY l1.campana_id;
+    #     """.format(campanas_ids, str(Campana.TYPE_DIALER))
+    #     params = {'fecha_desde': self.desde, 'fecha_hasta': self.hasta}
+    #     cursor = connection.cursor()
+    #     cursor.execute(sql, params)
+    #     values = cursor.fetchall()
+    #     for campana_id, cantidad in values:
+    #         self.estadisticas[campana_id]['canales_discando'] = cantidad
+    # ================================================
 
 
 class InboundDataManager(AbstractDataManager):
     ID = 'IN'
 
-    def _manager_id(self, user):
-        return f'{self.ID}:{user.id}'
-
 
 class OutboundDataManager(AbstractDataManager):
     ID = 'OUT'
     CAMP_TYPES = [Campana.TYPE_DIALER, Campana.TYPE_PREVIEW, Campana.TYPE_MANUAL]
-    NOT_ATTENDED_EVENTS = ['NOANSWER', 'CANCEL', 'BUSY', 'CHANUNAVAIL', 'FAIL', 'OTHER',
-                           'BLACKLIST', 'CONGESTION', 'NONDIALPLAN', 'ABANDON', 'EXITWITHTIMEOUT',
-                           'AMD', 'ABANDONWEL', ]
-    CALL_EVENTS = ['DIAL', 'ANSWER', ] + NOT_ATTENDED_EVENTS
-
-    def _manager_id(self, user):
-        return f'{self.ID}:{user.id}'
+    NOT_ATTENDED_EVENTS = LlamadaLog.EVENTOS_NO_CONEXION
+    CALL_EVENTS = ('DIAL', 'ANSWER', ) + NOT_ATTENDED_EVENTS
 
     def subscribe(self, campaigns, user):
         manager_id = self._manager_id(user)
@@ -130,11 +269,10 @@ class OutboundDataManager(AbstractDataManager):
             event_code = f'DISPOSITION:{campaign.id}'
             key = get_event_subscription_key(event_code)
             self.redis_calldata_connection.sadd(key, manager_id)
-            print('Suscribing: ', key, manager_id)
 
             initial_data[campaign.id] = self._get_initial_data(campaign)
 
-        # TODO Anlizar solo enviar data de campañas con datos
+        # TODO Analizar solo enviar data de campañas con datos
         return initial_data
 
     def unsubscribe(self, campaign, user):
@@ -169,7 +307,7 @@ class OutboundDataManager(AbstractDataManager):
                 attended = value
             if event in self.NOT_ATTENDED_EVENTS:
                 not_attended += int(value)
-        # TODO: Get dispositions
+        # Get dispositions
         dispositiondata_key = 'OML:DISPOSITIONDATA:CAMP:{0}'.format(campaign.id)
         response = self.redis_calldata_connection.hget(dispositiondata_key, 'ENGAGED')
         if response:

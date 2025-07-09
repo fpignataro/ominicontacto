@@ -31,7 +31,6 @@ class Command(BaseCommand):
         logger.info("Iniciando cron_tick_1")
         for cmd in [
             'actualizar_reportes_llamadas_entrantes',
-            'actualizar_reportes_llamadas_dialers',
             'actualizar_reporte_dia_actual_agentes',
         ]:
             try:

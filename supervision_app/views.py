@@ -114,8 +114,10 @@ class SupervisionCampanasDialerView(TemplateView):
             .filter(type=Campana.TYPE_DIALER) \
             .filter(estado__in=[Campana.ESTADO_ACTIVA, Campana.ESTADO_PAUSADA]) \
             .order_by('id')
-        context['campanas'] = ",".join([x.nombre for x in campanas])
+        context['nombres_campanas'] = ",".join([x.nombre for x in campanas])
         context['campanas_ids'] = ",".join([str(x.id) for x in campanas])
-        RedisGearsService().registra_stream_supervisor_dialers(
-            supervisor.id, context['campanas_ids'], context['campanas'])
+        context['campanas'] = {x.id: {'name': x.nombre, 'target': x.objetivo} for x in campanas}
+
+        # TODO: Datos de Agente por ahora sigue igual
+        RedisGearsService().registra_stream_supervisor_dialers(supervisor.id)
         return context
