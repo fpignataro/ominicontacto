@@ -29,6 +29,7 @@ from ominicontacto_app.models import (
     AgenteProfile, Pausa, Campana, Blacklist, ConfiguracionDeAgentesDeCampana, QueueMember, )
 from ominicontacto_app.utiles import convert_audio_asterisk_path_astdb
 from reportes_app.services.redis.call_data_generation import CallDataGenerator
+from reportes_app.services.redis.disposition_cache import CampaignDispositionsCache
 from configuracion_telefonia_app.models import (
     RutaSaliente, IVR, DestinoEntrante, ValidacionFechaHora, GrupoHorario, IdentificadorCliente,
     TroncalSIP, RutaEntrante, DestinoPersonalizado, AmdConf, EsquemaGrabaciones
@@ -882,6 +883,7 @@ class RegenerarAsteriskFamilysOML(object):
 
     def __init__(self):
         redis_connection = create_redis_connection()
+        redis_calldata_connection = create_redis_connection(2)
         self.campana_family = CampanaFamily(redis_connection=redis_connection)
         self.agente_family = AgenteFamily(redis_connection=redis_connection)
         self.pausa_family = PausaFamily(redis_connection=redis_connection)
@@ -889,7 +891,8 @@ class RegenerarAsteriskFamilysOML(object):
         # TODO: Separar datos de Redis pertinentes a Asterisk de los que no.
         self.campanas_de_agente_family = CampanasDeAgenteFamily(redis_connection=redis_connection)
         self.agentes_de_campana_family = CampaignAgentsFamily(redis_connection=redis_connection)
-        self.call_data_generator = CallDataGenerator(redis_connection=redis_connection)
+        self.call_data_generator = CallDataGenerator(redis_connection=redis_calldata_connection)
+        self.disposition_cache = CampaignDispositionsCache(redis_calldata_connection)
 
     def regenerar_asterisk(self):
         self.campana_family.regenerar_families()
@@ -899,3 +902,4 @@ class RegenerarAsteriskFamilysOML(object):
         self.campanas_de_agente_family.regenerar_datos_de_agentes()
         self.agentes_de_campana_family.regenerar_families()
         self.call_data_generator.regenerar()
+        self.disposition_cache.regenerar()
