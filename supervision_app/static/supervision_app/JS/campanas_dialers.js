@@ -87,10 +87,11 @@ function updateTable(data){
     if (data.type == 'update' && data.args.DIALER != undefined){
         let camp_id = data.args.DIALER.campaign_id;
         let field = data.args.DIALER.field;
+        const delta = data.args.DIALER.delta || 1;
         let camp_name = campaigns[camp_id].name;
         let row = table_dialers.row((idx, data) => data.name === camp_name);
         let row_data=row.data();
-        row_data[field] = Number(row_data[field]) + 1;
+        row_data[field] = Number(row_data[field]) + delta;
         if (field == 'dispositions'){
             updateTarget(camp_id, row_data);
         }
