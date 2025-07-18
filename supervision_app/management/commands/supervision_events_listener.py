@@ -22,7 +22,9 @@ import logging
 from django.core.management.base import BaseCommand
 from ominicontacto_app.services.redis.connection import create_redis_connection
 from supervision_app.services.events_management import SupervisionEventManager
-from wallboard_app.management.utils.asyncio import get_event_loop, create_task
+
+from asyncio import get_event_loop
+from orquestador_app.core.asyncio import create_task
 # AGENT_EVENTS_CHANNEL = 'OML:CHANNEL:AGENTEVENTS'
 CALL_EVENTS_CHANNEL = 'OML:CHANNEL:CALLEVENTS'
 DISPOSITIONS_EVENTS_CHANNEL = 'OML:CHANNEL:DISPOSITIONEVENTS'

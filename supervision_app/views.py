@@ -72,8 +72,9 @@ class SupervisionCampanasEntrantesView(TemplateView):
         else:
             campanas = supervisor.campanas_asignadas_actuales()
         campanas = campanas.filter(type=Campana.TYPE_ENTRANTE).order_by('id')
-        context['campanas'] = ",".join([x.nombre for x in campanas])
+        context['nombres_campanas'] = ",".join([x.nombre for x in campanas])
         context['campanas_ids'] = ",".join([str(x.id) for x in campanas])
+        context['campanas'] = {x.id: {'name': x.nombre, 'target': x.objetivo} for x in campanas}
         RedisGearsService().registra_stream_supervisor_entrantes(
             supervisor.id, context['campanas_ids'], context['campanas'])
         return context
