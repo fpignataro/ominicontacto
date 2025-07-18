@@ -249,7 +249,7 @@ class DialerStats {
         this.attended = 0;
         this.not_attended = 0;
         this.amd = 0;
-        this.conections_lost = 0;
+        this.connections_lost = 0;
         this.dispositions = 0;
         this.pendientes = 0;
         this.channels_dialing = 0;
@@ -266,7 +266,7 @@ class DialerStats {
         if (this.atendidas > 0) return false;
         if (this.no_atendidas > 0) return false;
         if (this.contestadores > 0) return false;
-        if (this.conectadas_perdidas > 0) return false;
+        if (this.connections_lost > 0) return false;
         if (this.gestiones > 0) return false;
         if (this.pendientes > 0) return false;
         if (this.channels_dialing > 0) return false;
@@ -332,9 +332,7 @@ class Agents {
         } else {
             this.agentList[agentId]['status'] = '';
         }
-
     }
-
 }
 
 function subcribeFilterChange() {

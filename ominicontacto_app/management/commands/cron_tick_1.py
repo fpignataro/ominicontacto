@@ -30,7 +30,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         logger.info("Iniciando cron_tick_1")
         for cmd in [
-            'actualizar_reportes_llamadas_entrantes',
             'actualizar_reporte_dia_actual_agentes',
         ]:
             try:
