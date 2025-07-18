@@ -106,7 +106,7 @@ class CallDataGenerator(object):
             campana_id = cantidad['campana_id']
             tipo_llamada = cantidad['tipo_llamada']
             evento = cantidad['event']
-            key_evento = f'CALLTYPE:{tipo_llamada}:{evento}'
+            key_evento = f'CALL_TYPE:{tipo_llamada}:{evento}'
             if campana_id not in eventos_por_campana:
                 eventos_por_campana[campana_id] = {}
             eventos_por_campana[campana_id][key_evento] = cantidad['cantidad']
