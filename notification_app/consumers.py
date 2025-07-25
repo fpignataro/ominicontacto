@@ -18,6 +18,7 @@
 
 import logging
 from django.conf import settings
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.layers import get_channel_layer
 from ominicontacto_app.services.dialer.notification.subscription \
@@ -172,14 +173,17 @@ class SupervisionConsumer(AsyncJsonWebsocketConsumer):
             if self.section not in self.data_manager.SECTIONS:
                 return await self.close()
             self.user = self.scope['user']
-            if self.user.is_authenticated and self.user.get_supervisor_profile():
+            if self.user.is_authenticated and \
+                    await database_sync_to_async(self.user.get_supervisor_profile)():
                 for group in self.GROUPS:
                     await self.channel_layer.group_add(
                         group.format(user_id=self.user.id), self.channel_name)
                 await self.accept()
-                initial_data = self.data_manager.add_subscription(self.user, self.section)
-                await self.send_json({'initial_data': initial_data})
-                return
+                initial_data = await database_sync_to_async(self.data_manager.add_subscription)(
+                    self.user,
+                    self.section,
+                )
+                return await self.send_json({'initial_data': initial_data})
             return await self.close()
         except Exception as e:
             logger.error(e, exc_info=True)
@@ -191,8 +195,12 @@ class SupervisionConsumer(AsyncJsonWebsocketConsumer):
         for group in self.GROUPS:
             await self.channel_layer.group_discard(
                 group.format(user_id=self.user.id), self.channel_name)
-        if self.user.is_authenticated and self.user.get_supervisor_profile():
-            self.data_manager.remove_subscription(self.user, self.section)
+        if self.user.is_authenticated and \
+                await database_sync_to_async(self.user.get_supervisor_profile)():
+            await database_sync_to_async(self.data_manager.remove_subscription)(
+                self.user,
+                self.section,
+            )
 
     async def broadcast(self, event):
         await self.send_json(event['payload'])

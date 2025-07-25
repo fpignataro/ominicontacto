@@ -202,8 +202,17 @@ class DialerDataManager(AbstractDataManager):
             if event_data['event'] in LlamadaLog.EVENTOS_NO_DIALOGO:
                 return {'campaign_id': event_data['id'], 'field': 'connections_lost'}
         if event_data['type'] == 'DISPOSITION':
+            delta = 0
             if event_data['engaged']:
-                return {'campaign_id': event_data['id'], 'field': 'dispositions'}
+                delta = 1
+            elif not event_data['engaged'] and event_data['has_previous_different']:
+                delta = -1
+            if delta:
+                return {
+                    'campaign_id': event_data['id'],
+                    'field': 'dispositions',
+                    'delta': delta
+                }
 
     # ================================================
     # TODO: ESTE CODIGO QUEDA COMO REFERENCIA DE COMO SE CALCULABA ANTES - Borrarlo
@@ -330,5 +339,14 @@ class OutboundDataManager(AbstractDataManager):
             if event_data['event'] in self.NOT_ATTENDED_EVENTS:
                 return {'campaign_id': event_data['id'], 'field': 'not_attended'}
         if event_data['type'] == 'DISPOSITION':
+            delta = 0
             if event_data['engaged']:
-                return {'campaign_id': event_data['id'], 'field': 'dispositions'}
+                delta = 1
+            elif not event_data['engaged'] and event_data['has_previous_different']:
+                delta = -1
+            if delta:
+                return {
+                    'campaign_id': event_data['id'],
+                    'field': 'dispositions',
+                    'delta': delta
+                }
