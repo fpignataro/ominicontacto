@@ -70,10 +70,11 @@ function updateTable(data){
     if (data.type == 'update' && data.args.OUT != undefined){
         let camp_id = data.args.OUT.campaign_id;
         let field = data.args.OUT.field;
+        const delta = data.args.OUT.delta || 1;
         let camp_name = campaigns[camp_id].name;
         let row = table_outbounds.row((idx, data) => data.name === camp_name);
         let row_data=row.data();
-        row_data[field] = Number(row_data[field]) + 1;
+        row_data[field] = Number(row_data[field]) + delta;
         if (field == 'dispositions'){
             updateTarget(camp_id, row_data);
         }
