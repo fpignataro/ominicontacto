@@ -22,7 +22,10 @@ from ominicontacto_app.services.redis.connection import create_redis_connection
 
 CAMPAIGN_EVENT_TYPE = 'CAMP'
 DISPOSITION_EVENT_TYPE = 'DISPOSITION'
-AGENT_EVENT_TYPE = 'AGENT'
+QUEUE_EVENT_TYPE = 'QUEUE'
+ABANDON_EVENT_TYPE = 'ABANDON'
+WAIT_EVENT_TYPE = 'WAIT'
+# AGENT_EVENT_TYPE = 'AGENT'
 
 
 class SupervisionEventManager(object):
@@ -36,6 +39,7 @@ class SupervisionEventManager(object):
         # print('SupervisionEventManager - Evento recibido:', event_data)
         subscriptors = self._get_event_subscriptors(event_data)
         if not subscriptors:
+            # print('NO SUBSCRIPTORS')
             return
 
         data_manager = SupervisionDataManager(
@@ -66,11 +70,11 @@ class SupervisionEventManager(object):
 
     def _get_event_code(self, event_data):
         type = event_data['type']
-        if type == AGENT_EVENT_TYPE:
-            # AGENTS:campaign_id
-            campaign_id = event_data['campaign'].split('_')[0]
-            agent_id = event_data['agent']
-            return f'{type}:{agent_id}'
+        # if type == AGENT_EVENT_TYPE:
+        #     # AGENTS:campaign_id
+        #     campaign_id = event_data['campaign'].split('_')[0]
+        #     agent_id = event_data['agent']
+        #     return f'{type}:{agent_id}'
         if type == CAMPAIGN_EVENT_TYPE:
             # CAMP:campaign_id:event
             campaign_id = event_data['id']
@@ -78,5 +82,17 @@ class SupervisionEventManager(object):
             return f'{type}:{campaign_id}:{event}'
         if type == DISPOSITION_EVENT_TYPE:
             # DISPOSITION:{campaign.id}
+            campaign_id = event_data['id']
+            return f'{type}:{campaign_id}'
+        if type == ABANDON_EVENT_TYPE:
+            # ABANDON:{campaign.id}
+            campaign_id = event_data['id']
+            return f'{type}:{campaign_id}'
+        if type == QUEUE_EVENT_TYPE:
+            # QUEUE:{campaign.id}
+            campaign_id = event_data['id']
+            return f'{type}:{campaign_id}'
+        if type == WAIT_EVENT_TYPE:
+            # WAIT:{campaign.id}
             campaign_id = event_data['id']
             return f'{type}:{campaign_id}'
