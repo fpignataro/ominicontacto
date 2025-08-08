@@ -50,8 +50,15 @@ class SupervisionDataManager:
         return initial_data
 
     def remove_subscription(self, user, section):
-        # Recorrer todas las suscripciones y borrar?
-        pass
+        campaigns = self._current_campaigns(user)
+        if section == self.AGENTS:
+            self.agents.unsubscribe(campaigns, user)
+        if section == self.OUTBOUND:
+            self.outbound.unsubscribe(campaigns, user)
+        if section == self.DIALER:
+            self.dialer.unsubscribe(campaigns, user)
+        if section == self.INBOUND:
+            self.inbound.unsubscribe(campaigns, user)
 
     def update(self, supervisor_id, section_id, event_data):
         if section_id == AgentsDataManager.ID:
@@ -83,7 +90,7 @@ class AbstractDataManager():
     def subscribe(self, campaigns, user):
         raise NotImplementedError()
 
-    def unsubscribe(self, campaign, user):
+    def unsubscribe(self, campaigns, user):
         raise NotImplementedError()
 
 
@@ -99,7 +106,6 @@ class DialerDataManager(AbstractDataManager):
 
     def subscribe(self, campaigns, user):
         manager_id = self._manager_id(user)
-        print('MANAGER_ID = ', manager_id)
         initial_data = {}
 
         campaigns = campaigns.filter(type=Campana.TYPE_DIALER)
@@ -119,21 +125,22 @@ class DialerDataManager(AbstractDataManager):
         # TODO Analizar solo enviar data de campañas con datos
         return initial_data
 
-    def unsubscribe(self, campaign, user):
+    def unsubscribe(self, campaigns, user):
         # Analizar recorrer todas las suscripciones usando un
         # scan('OML:SUPERVISION:EVENT_SUBSCRIPTIONS:*') eliminando el manager_id de todas.
         # Así no quedarian suscripciones fantasmas en caso de que cambien asignaciones de campañas.
 
         manager_id = self._manager_id(user)
-        # CAMP event Types
-        for event in self.CALL_EVENTS:
-            event_code = f'CAMP:{campaign.id}:{event}'
+        for campaign in campaigns:
+            # CAMP event Types
+            for event in self.CALL_EVENTS:
+                event_code = f'CAMP:{campaign.id}:{event}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.srem(key, manager_id)
+            # DISPOSITION
+            event_code = f'DISPOSITIONS:{campaign.id}'
             key = get_event_subscription_key(event_code)
             self.redis_calldata_connection.srem(key, manager_id)
-        # DISPOSITION
-        event_code = f'DISPOSITIONS:{campaign.id}'
-        key = get_event_subscription_key(event_code)
-        self.redis_calldata_connection.srem(key, manager_id)
 
     def _get_initial_data(self, campaign):
         calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
@@ -156,7 +163,6 @@ class DialerDataManager(AbstractDataManager):
         # Get CALLDATA sums
         for key, value in response.items():
             _key = key.split(':')  # CALL_TYPE:<call_type>:<event>
-            print(key)
             if _key[1] == str(LlamadaLog.LLAMADA_DIALER):  # call_type
                 event = _key[-1]
                 if event == 'DIAL':
@@ -186,7 +192,6 @@ class DialerDataManager(AbstractDataManager):
         }
 
     def update(self, event_data):
-        print('Update for: ', event_data)
         if event_data['type'] == 'CAMP':
             if event_data['call_type'] != str(LlamadaLog.LLAMADA_DIALER):
                 return
@@ -255,6 +260,149 @@ class DialerDataManager(AbstractDataManager):
 
 class InboundDataManager(AbstractDataManager):
     ID = 'IN'
+
+    def subscribe(self, campaigns, user):
+        manager_id = self._manager_id(user)
+        initial_data = {}
+        campaigns_ids = []
+
+        campaigns = campaigns.filter(type=Campana.TYPE_ENTRANTE)
+        for campaign in campaigns:
+            # Call Events
+            event_code = f'CAMP:{campaign.id}:EXITWITHTIMEOUT'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+            # Wait time
+            event_code = f'WAIT:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+            # Disposiion Events
+            event_code = f'DISPOSITION:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+            # Abandon Wait Events
+            event_code = f'ABANDON:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+            # Queue Size Events
+            event_code = f'QUEUE:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.sadd(key, manager_id)
+
+            campaigns_ids.append(campaign.id)
+            initial_data[campaign.id] = self._get_initial_data(campaign)
+        self._set_initial_queue_sizes(campaigns_ids, initial_data)
+
+        # TODO Analizar solo enviar data de campañas con datos
+        return initial_data
+
+    def unsubscribe(self, campaigns, user):
+        # Analizar recorrer todas las suscripciones usando un
+        # scan('OML:SUPERVISION:EVENT_SUBSCRIPTIONS:*') eliminando el manager_id de todas.
+        # Así no quedarian suscripciones fantasmas en caso de que cambien asignaciones de campañas.
+        manager_id = self._manager_id(user)
+        campaigns = campaigns.filter(type=Campana.TYPE_ENTRANTE)
+        for campaign in campaigns:
+            # Call Events
+            event_code = f'CAMP:{campaign.id}:EXITWITHTIMEOUT'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+            # Wait time
+            event_code = f'WAIT:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+            # Disposiion Events
+            event_code = f'DISPOSITION:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+            # Abandon Wait Events
+            event_code = f'ABANDON:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+            # Queue Size Events
+            event_code = f'QUEUE:{campaign.id}'
+            key = get_event_subscription_key(event_code)
+            self.redis_calldata_connection.srem(key, manager_id)
+
+    def _get_initial_data(self, campaign):
+        attended = 0
+        wait_time_sum = 0
+        expired = 0
+        dispositions = 0
+        abandons = 0
+        abandons_sum = 0
+
+        # Get expired from CALLDATA:CAMP
+        calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
+        field = f'CALL_TYPE:{Campana.TYPE_ENTRANTE}:EXITWITHTIMEOUT'
+        response = self.redis_calldata_connection.hget(calldata_key, field)
+        if response:
+            expired = response
+        # Get attended + wait times sum:
+        wait_time_key = 'OML:CALLDATA:WAIT-TIME:CAMP:{0}'.format(campaign.id)
+        wait_times = self.redis_calldata_connection.lrange(wait_time_key, 0, -1)
+        for time in wait_times:
+            attended += 1
+            wait_time_sum += int(time)
+        # Get dispositions
+        dispositiondata_key = 'OML:DISPOSITIONDATA:CAMP:{0}'.format(campaign.id)
+        response = self.redis_calldata_connection.hget(dispositiondata_key, 'ENGAGED')
+        if response:
+            dispositions = response
+        # Get abandons
+        abandon_time_key = 'OML:CALLDATA:ABANDON-TIME:CAMP:{0}'.format(campaign.id)
+        abandon_times = self.redis_calldata_connection.lrange(abandon_time_key, 0, -1)
+        for time in abandon_times:
+            abandons += 1
+            abandons_sum += int(time)
+
+        return {
+            'attended': attended,
+            'total_wait_time': wait_time_sum,
+            'expired': expired,
+            'abandons': abandons,
+            'total_abandon_time': abandons_sum,
+            'dispositions': dispositions,
+            'queue_size': 0,
+        }
+
+    def update(self, event_data):
+        if event_data['type'] == 'CAMP':
+            if event_data['event'] == 'EXITWITHTIMEOUT':
+                return {'campaign_id': event_data['id'], 'field': 'expired'}
+        if event_data['type'] == 'WAIT':
+            return {'campaign_id': event_data['id'], 'field': 'attended',
+                    'wait_time': event_data['time']}
+        if event_data['type'] == 'ABANDON':
+            return {'campaign_id': event_data['id'], 'field': 'abandons',
+                    'time': event_data['time']}
+        if event_data['type'] == 'DISPOSITION':
+            delta = 0
+            if event_data['engaged']:
+                delta = 1
+            elif not event_data['engaged'] and event_data['has_previous_different']:
+                delta = -1
+            if delta:
+                return {
+                    'campaign_id': event_data['id'],
+                    'field': 'dispositions',
+                    'delta': delta
+                }
+            return
+        if event_data['type'] == 'QUEUE':
+            return {'campaign_id': event_data['id'], 'field': 'queue_size',
+                    'size': event_data['size']}
+
+    def _set_initial_queue_sizes(self, campaigns_ids, initial_data):
+        CALLDATA_QUEUE_SIZE_KEY = 'OML:CALLDATA:QUEUE-SIZE:{0}'
+        keys = [CALLDATA_QUEUE_SIZE_KEY.format(campaign_id) for campaign_id in campaigns_ids]
+        sizes = self.redis_calldata_connection.mget(keys)
+        i = 0
+        for campaign_id in campaigns_ids:
+            size = sizes[i]
+            if size is not None:
+                initial_data[campaign_id]['queue_size'] = int(size)
+            i += 1
 
 
 class OutboundDataManager(AbstractDataManager):
@@ -330,7 +478,6 @@ class OutboundDataManager(AbstractDataManager):
         }
 
     def update(self, event_data):
-        print('Update for: ', event_data)
         if event_data['type'] == 'CAMP':
             if event_data['event'] == 'DIAL':
                 return {'campaign_id': event_data['id'], 'field': 'dialed'}
