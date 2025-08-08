@@ -56,7 +56,7 @@ class CallDataGeneratorTests(OMLBaseTest):
         key = CallDataGenerator.CALLDATA_CAMP_KEY.format(self.campana1.id)
         eventos = {}
         for evento in CallDataGenerator.EVENTOS_FIN_CONEXION_ORIGINAL:
-            key_evento = f'CALLTYPE:{self.tipo_llamada}:{evento}'
+            key_evento = f'CALL_TYPE:{self.tipo_llamada}:{evento}'
             eventos[key_evento] = cantidad
         redis_hset.assert_called_with(key, mapping=eventos)
 
