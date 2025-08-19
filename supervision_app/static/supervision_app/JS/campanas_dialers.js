@@ -83,17 +83,29 @@ function initializeTable(initial_data){
     table_dialers.rows.add(table_data).draw();
 }
 
-function updateTable(data){
-    if (data.type == 'update' && data.args.DIALER != undefined){
-        let camp_id = data.args.DIALER.campaign_id;
-        let field = data.args.DIALER.field;
-        const delta = data.args.DIALER.delta || 1;
+function updateTable(event_data){
+    if (event_data.type == 'update' && event_data.args.DIALER != undefined){
+        let data = event_data.args.DIALER;
+        let camp_id = data.campaign_id;
+        let field = data.field;
+        const delta = data.delta || 1;
         let camp_name = campaigns[camp_id].name;
         let row = table_dialers.row((idx, data) => data.name === camp_name);
         let row_data=row.data();
-        row_data[field] = Number(row_data[field]) + delta;
-        if (field == 'dispositions'){
-            updateTarget(camp_id, row_data);
+        if (field == 'channels'){
+            row_data[field] = Number(data[field]);
+        }
+        else if (field == 'pending'){
+            updatePending(row_data, data);
+        }
+        else if (field == 'status') {
+            updateStatus(row_data, data);
+        }
+        else {
+            row_data[field] = Number(row_data[field]) + delta;
+            if (field == 'dispositions'){
+                updateTarget(camp_id, row_data);
+            }
         }
         row.data(row_data).draw();
     }
@@ -106,6 +118,24 @@ function updateTarget(camp_id, camp_data){
         return;
     }
     camp_data.target = (100 * camp_data.dispositions / target).toFixed(1);
+}
+
+function updatePending(camp_data, data){
+    if (data.pending_initial !== undefined){
+        camp_data.pending_initial = Number(data.pending_initial);
+        camp_data.pending = camp_data.pending_initial + camp_data.pending_retries;
+    }
+    if (data.pending_retries !== undefined){
+        camp_data.pending_retries = Number(data.pending_retries);
+        camp_data.pending = camp_data.pending_initial + camp_data.pending_retries;
+    }
+    if (data.pending !== undefined){  /** Wombat? */
+        camp_data.pending = Number(data.pending);
+    }
+}
+
+function updateStatus(camp_data, data){
+    camp_data.status = data.value;
 }
 
 /** TODO: Dejar de procesar datos de agentes desde el stream. */
@@ -198,10 +228,10 @@ function createDataTable() {
             { 'data': 'attended' },
             { 'data': 'not_attended' },
             { 'data': 'amd' },
-            { 'data': 'channels_dialing' }, /** TODO */
+            { 'data': 'channels' },
             { 'data': 'connections_lost' },
             { 'data': 'dispositions' },
-            { 'data': 'pendientes' },  /** TODO */
+            { 'data': 'pending' },
             { 'data': 'target' },
             { 'data': 'status', 'visible': false }, /** TODO ACTIVA(2) O PAUSADA(5) */
         ],
@@ -251,8 +281,10 @@ class DialerStats {
         this.amd = 0;
         this.connections_lost = 0;
         this.dispositions = 0;
-        this.pendientes = 0;
-        this.channels_dialing = 0;
+        this.pending = 0;
+        this.pending_initial = 0;
+        this.pending_retries = 0;
+        this.channels = 0;
         this.agents_online = 0;
         this.agents_oncall = 0;
         this.agents_onpause = 0;
@@ -268,8 +300,8 @@ class DialerStats {
         if (this.contestadores > 0) return false;
         if (this.connections_lost > 0) return false;
         if (this.gestiones > 0) return false;
-        if (this.pendientes > 0) return false;
-        if (this.channels_dialing > 0) return false;
+        if (this.pending > 0) return false;
+        if (this.channels > 0) return false;
         if (this.target > 0) return false;
         return true;
     }
@@ -347,7 +379,8 @@ function handle_filter() {
     if(value > 0){
         table_dialers.columns(14).search(value).draw();
     } else {
-        table_dialers.columns().search('').draw();
+        // Solo mostrar Activas (2) o Pausadas (5) 
+        table_dialers.columns(14).search('[2|5]', true, false).draw();
     }
 }
 
