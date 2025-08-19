@@ -22,12 +22,14 @@ import logging
 from django.core.management.base import BaseCommand
 from ominicontacto_app.services.redis.connection import create_redis_connection
 from supervision_app.services.events_management import SupervisionEventManager
+from ominicontacto_app.services.dialer import wombat_habilitado
 
 from asyncio import get_event_loop
 from orquestador_app.core.asyncio import create_task
 # AGENT_EVENTS_CHANNEL = 'OML:CHANNEL:AGENTEVENTS'
 CALL_EVENTS_CHANNEL = 'OML:CHANNEL:CALLEVENTS'
 DISPOSITIONS_EVENTS_CHANNEL = 'OML:CHANNEL:DISPOSITIONEVENTS'
+OMNIDIALER_EVENTS_CHANNEL = 'OML:CHANNEL:DIALER'
 logger = logging.getLogger(__name__)
 
 
@@ -63,6 +65,9 @@ class Command(BaseCommand):
             loop = get_event_loop()
             try:
                 channels = [CALL_EVENTS_CHANNEL, DISPOSITIONS_EVENTS_CHANNEL, ]
+                # Assumo que si no se usa Wombat, se usa OMniDialer
+                if not wombat_habilitado():
+                    channels.append(OMNIDIALER_EVENTS_CHANNEL)
                 loop.run_until_complete(self.subscribe_channels(channels, redis_connection, loop))
             finally:
                 loop.run_until_complete(loop.shutdown_asyncgens())
