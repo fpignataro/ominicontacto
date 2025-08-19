@@ -25,6 +25,9 @@ DISPOSITION_EVENT_TYPE = 'DISPOSITION'
 QUEUE_EVENT_TYPE = 'QUEUE'
 ABANDON_EVENT_TYPE = 'ABANDON'
 WAIT_EVENT_TYPE = 'WAIT'
+DIALER_STATS = 'STATS'
+DIALER_STATUSCHANGE = 'STATUSCHANGE'
+DIALER_CALLS = 'CALLS'
 # AGENT_EVENT_TYPE = 'AGENT'
 
 
@@ -95,4 +98,17 @@ class SupervisionEventManager(object):
         if type == WAIT_EVENT_TYPE:
             # WAIT:{campaign.id}
             campaign_id = event_data['id']
+            return f'{type}:{campaign_id}'
+        if type == DIALER_STATS:
+            # Por el momento solo me interesan los eventos STATS para estos valores
+            campaign_id = event_data.get('camp_id', None)
+            if campaign_id and 'PENDING_INITIAL_CONTACT_ATTEMPTS' in event_data:
+                return f'{type}:{campaign_id}'
+            if campaign_id and 'NO CONTACTS WITH PENDING ATTEMPTS' in event_data:
+                return f'{type}:{campaign_id}'
+        if type == DIALER_STATUSCHANGE:
+            campaign_id = event_data.get('camp_id', None)
+            return f'{type}:{campaign_id}'
+        if type == DIALER_CALLS:
+            campaign_id = event_data.get('camp_id', None)
             return f'{type}:{campaign_id}'
