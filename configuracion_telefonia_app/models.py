@@ -28,7 +28,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator, RegexVa
 from django.utils.translation import gettext_lazy as _
 
 from ominicontacto_app.models import ArchivoDeAudio, Campana
-from whatsapp_app.models import MenuInteractivoWhatsapp, Linea
+from whatsapp_app.models import MenuInteractivoWhatsapp, Linea, PlantillaMensaje
 
 import os
 import re
@@ -348,6 +348,7 @@ class DestinoEntrante(models.Model):
     IDENTIFICADOR_CLIENTE = 9
     MENU_INTERACTIVO_WHATSAPP = 10
     AGENTE = 11
+    CLOSING_MESSAGE = 12
 
     TIPOS_DESTINOS = (
         (CAMPANA, _('Campaña entrante')),
@@ -358,6 +359,7 @@ class DestinoEntrante(models.Model):
         (CUSTOM_DST, _('Destino personalizado')),
         (MENU_INTERACTIVO_WHATSAPP, _('Menú Interactivo de Whatsapp')),
         (AGENTE, _('Agente')),
+        (CLOSING_MESSAGE, _('Mensaje de Cierre')),
     )
     nombre = models.CharField(max_length=128)
     tipo = models.PositiveIntegerField(choices=TIPOS_DESTINOS)
@@ -393,6 +395,8 @@ class DestinoEntrante(models.Model):
         elif info_nodo_entrante.__class__.__name__ == 'Encuesta' and \
                 info_nodo_entrante.__module__ == 'survey_app.models':
             tipo = cls.SURVEY
+        elif isinstance(info_nodo_entrante, PlantillaMensaje):
+            tipo = cls.CLOSING_MESSAGE
         kwargs = {
             'nombre': info_nodo_entrante.nombre,
             'tipo': tipo,
