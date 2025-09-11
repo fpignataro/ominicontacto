@@ -550,6 +550,10 @@ class CamposDeBaseDeDatosForm(forms.Form):
         widget=forms.CheckboxSelectMultiple())
     id_externo = forms.ChoiceField(required=False,
                                    widget=forms.Select(attrs={'class': 'form-control'}))
+    whatsapp = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={"class": "form-control"})
+    )
 
     def __init__(self, nombres_campos, *args, **kwargs):
         super(CamposDeBaseDeDatosForm, self).__init__(*args, **kwargs)
@@ -558,6 +562,7 @@ class CamposDeBaseDeDatosForm(forms.Form):
         id_externo_choices = [EMPTY_CHOICE]
         id_externo_choices.extend(tuple([(x, x) for x in nombres_campos]))
         self.fields['id_externo'].choices = id_externo_choices
+        self.fields['whatsapp'].choices = [EMPTY_CHOICE] + [(x, x) for x in nombres_campos]
 
     def clean(self):
         campos_telefonicos = self.cleaned_data.get('campos_telefonicos', [])
@@ -578,6 +583,13 @@ class CamposDeBaseDeDatosForm(forms.Form):
     def columna_id_externo(self):
         # Devuelvo el indice del nombre de la columnas del id externo
         seleccionado = self.cleaned_data.get('id_externo', '')
+        if seleccionado in self.nombres_campos:
+            return self.nombres_campos.index(seleccionado)
+        return None
+
+    @property
+    def columna_whatsapp(self):
+        seleccionado = self.cleaned_data.get('whatsapp', '')
         if seleccionado in self.nombres_campos:
             return self.nombres_campos.index(seleccionado)
         return None
@@ -1317,9 +1329,10 @@ class FormularioNuevoContacto(forms.ModelForm):
 
     class Meta:
         model = Contacto
-        fields = ('telefono', 'id_externo', 'confirmar_duplicado')
+        fields = ('telefono', 'whatsapp', 'id_externo', 'confirmar_duplicado')
         widgets = {
             "telefono": forms.TextInput(attrs={'class': 'form-control'}),
+            "whatsapp": forms.TextInput(attrs={'class': 'form-control'}),
             "id_externo": forms.TextInput(attrs={'class': 'form-control'}),
         }
 
@@ -2588,6 +2601,9 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
             "col_id_externo": {
                 "type": ["integer", "null"],
             },
+            "col_whatsapp": {
+                "type": ["integer", "null"],
+            },
         },
         "required": [
             "prim_fila_enc",
@@ -2595,6 +2611,7 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
             "nombres_de_columnas",
             "cols_telefono",
             "col_id_externo",
+            "col_whatsapp",
         ],
     }
 
@@ -2625,4 +2642,6 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
             raise forms.ValidationError(_("El valor de {0} es incorrecto".format('cols_telefono')))
         if metadata["col_id_externo"] and metadata["col_id_externo"] >= metadata["cant_col"]:
             raise forms.ValidationError(_("El valor de {0} es incorrecto".format('col_id_externo')))
+        if metadata["col_whatsapp"] and metadata["col_whatsapp"] >= metadata["cant_col"]:
+            raise forms.ValidationError(_("El valor de {0} es incorrecto".format('col_whatsapp')))
         return value

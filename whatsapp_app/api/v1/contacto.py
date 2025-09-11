@@ -38,7 +38,7 @@ from whatsapp_app.models import ConversacionWhatsapp
 
 class ListSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-    phone = serializers.CharField(source='telefono')
+    phone = serializers.CharField(source='whatsapp')
     data = serializers.SerializerMethodField()
     disposition = serializers.SerializerMethodField()
 
@@ -55,7 +55,7 @@ class RetriveSerializer(serializers.ModelSerializer):
         model = Contacto
         fields = [
             'id',
-            'telefono',
+            'whatsapp',
             'datos',
             'bd_contacto',
         ]

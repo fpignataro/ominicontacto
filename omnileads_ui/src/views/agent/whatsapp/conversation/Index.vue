@@ -16,7 +16,7 @@
         class="mt-0 mb-3"
         >{{ $t("views.whatsapp.contact.info") }}
         <b
-          ><a @click="createContact">{{
+          ><a @click="assignContact({id: agtWhatsCoversationInfo.id})">{{
             $t("globals.here").toUpperCase()
           }}</a></b
         >
@@ -69,6 +69,7 @@ import ListMessages from '@/components/agent/whatsapp/conversation/ListMessages'
 import { listenerStoreDataByAction } from '@/utils';
 import { COLORS } from '@/globals';
 import { WHATSAPP_LOCALSTORAGE_EVENTS } from '@/globals/agent/whatsapp';
+import { WhatsappConsumer } from '@/web_sockets/whatsapp_consumer';
 export default {
     inject: ['$helpers'],
     components: {
@@ -101,6 +102,7 @@ export default {
             WHATSAPP_LOCALSTORAGE_EVENTS.TRANSFER.DONE,
             this.transferDone
         );
+        WhatsappConsumer.getInstance({});
     },
     beforeUnmount () {
         window.parent.document.removeEventListener(
@@ -161,6 +163,15 @@ export default {
                 }
             });
             window.parent.document.dispatchEvent(modalEvent);
+        },
+        assignContact (conversation) {
+            const params = new URLSearchParams(conversation);
+            parent.postMessage({
+                id: 'show.bs-modal',
+                dialogCls: 'modal-lg',
+                iframeCss: { height: '550px' },
+                src: `/static/omnileads-frontend/agent-whatsapp-contact-form?${params}`
+            });
         },
         checkExpirationDate () {
             if (this.agtWhatsCoversationInfo?.expire) {

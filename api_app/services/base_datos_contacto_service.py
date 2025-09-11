@@ -75,7 +75,8 @@ class BaseDatosContactoService(object):
         bd_contactos = BaseDatosContacto.objects.obtener_en_actualizada_para_editar(id)
         self.importa_contactos(bd_contactos, campos_telefonicos, columna_id_externo)
 
-    def importa_contactos(self, base_datos_contacto, campos_telefonicos, columna_id_externo):
+    def importa_contactos(self, base_datos_contacto, campos_telefonicos, columna_id_externo,
+                          columna_whatsapp):
         """
         Tercer paso de la creación de una BaseDatosContacto.
         Este método se encarga de generar los objectos Contacto por cada linea
@@ -99,8 +100,8 @@ class BaseDatosContactoService(object):
             objs = []
             for lista_dato in estructura_archivo[1:]:
                 numero_fila += 1
-                telefono, datos, id_externo = self._obtener_telefono_y_datos(
-                    lista_dato, posicion_primer_telefono, columna_id_externo)
+                telefono, datos, id_externo, whatsapp = self._obtener_telefono_y_datos(
+                    lista_dato, posicion_primer_telefono, columna_id_externo, columna_whatsapp)
                 cantidad_contactos += 1
                 if id_externo is not None and id_externo != '':
                     # El id_externo no puede estar repetido
@@ -117,7 +118,8 @@ class BaseDatosContactoService(object):
                         telefono=telefono,
                         datos=datos,
                         bd_contacto=base_datos_contacto,
-                        id_externo=id_externo
+                        id_externo=id_externo,
+                        whatsapp=whatsapp,
                     )
                 )
             contactos = Contacto.objects.bulk_create(objs, batch_size=1000)
@@ -144,13 +146,17 @@ class BaseDatosContactoService(object):
         return BaseDatosContacto.objects.filter(nombre=nombre).exists()
 
     def _obtener_telefono_y_datos(self, lista_dato, posicion_primer_telefono,
-                                  columna_id_externo) -> any:
+                                  columna_id_externo, columna_whatsapp) -> any:
         id_externo = None
+        whatsapp = None
         if len(lista_dato) > 1:
             item = []
             for i, valor in enumerate(lista_dato):
-                if i == posicion_primer_telefono:
-                    telefono = valor
+                if i == posicion_primer_telefono or i == columna_whatsapp:
+                    if i == posicion_primer_telefono:
+                        telefono = valor
+                    if i == columna_whatsapp:
+                        whatsapp = valor
                 elif i == columna_id_externo:
                     id_externo = valor
                 else:
@@ -160,7 +166,7 @@ class BaseDatosContactoService(object):
             item = ['']
 
         datos = json.dumps(item)
-        return telefono, datos, id_externo
+        return telefono, datos, id_externo, whatsapp
 
     def remove_db(self, id):
         BaseDatosContacto.objects.filter(id=id).delete()

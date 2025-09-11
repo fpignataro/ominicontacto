@@ -183,6 +183,8 @@ COLUMNAS_DB_DEFAULT_TELEFONO = [0, 4, 5]
 
 COLUMNAS_DB_DEFAULT_ID_EXTERNO = 3
 
+COLUMNAS_DB_DEFAULT_WHATSAPP = 0
+
 DEFAULT_DB_METADATA = '{"prim_fila_enc": false, "cant_col": 6, "nombres_de_columnas": '\
                       '["' + '", "'.join([str(x) for x in COLUMNAS_DB_DEFAULT]) + '"],' + \
                       ' "cols_telefono": [0, 4, 5]}'

@@ -11,6 +11,12 @@ export default [
         component: Index
     },
     {
+        path: '/agent-whatsapp-conversation-new',
+        name: 'agent-whatsapp-conversation-new',
+        component: ConversationNew,
+        props: (route) => route.query
+    },
+    {
         path: `/${WHATSAPP_URL_NAME}_conversation_new.html`,
         name: `${WHATSAPP_URL_NAME}_conversation_new`,
         component: ConversationNew

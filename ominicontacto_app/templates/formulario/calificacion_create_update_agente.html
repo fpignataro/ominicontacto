@@ -20,6 +20,7 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
 {% load static %}
 {% load i18n %}
 {% block extra_css %}
+    <link rel="stylesheet" href="{% static 'CSS/ext/sweetalert2.min.css' %}">
     <link rel="stylesheet" href="{% static 'ominicontacto/CSS/ext/jquery.growl.css' %}">
     <link rel="stylesheet" href="{% static 'ominicontacto/CSS/googlemap.css' %}">
     <link rel="stylesheet" href="{% static 'ominicontacto/CSS/formulario_contacto.css' %}">
@@ -27,10 +28,12 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
 {% endblock extra_css%}
 {% block head_js %}
     <!-- Scripts -->
+    <script type="text/javascript" src="{% static 'JS/ext/sweetalert2.min.js' %}"></script>
     <script type="text/javascript" src="{% static 'ominicontacto/JS/csrf.js' %}"></script>
     <script type="text/javascript" src="{% static 'ominicontacto/JS/ext/jquery.growl.js' %}"></script>
     <script src="{% static 'ominicontacto/JS/agente/formularioCalificacion.js' %}"></script>
     <script src="{% static 'ominicontacto/JS/agente/make_click2call.js' %}"></script>
+    <script src="{% static 'ominicontacto/JS/agente/click-to-whatsapp.js' %}"></script>
     <script src="{% static 'ominicontacto/JS/agente/interaccionSitioExterno.js' %}"></script>
     <script src="{% static 'ominicontacto/JS/agente/revisionAuditoria.js' %}"></script>
 {% endblock head_js %}
@@ -86,10 +89,30 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
                         <tr>
                             <th>{{ field.label_tag}}</th>
                             <th>{{ field.errors }}</th>
-                            <td> {{ field }}
-                            {% if contacto and field.name in campos_telefono %}
-                                    <a class="btn btn-submit btn-outline-primary" href="javascript:;" onclick="makeClick2Call('{{ campana.id }}', '{{ campana.type }}', '{{ contacto.id }}', '{{ field.value }}', 'agendas');" name="click2call">{{ field.value }}</a>
-                            {% endif %}
+                            <td>
+                                <div class="input-group mb-3">
+                                    {{ field }}
+                                    {% if contacto and field.value %}
+                                    {% if field.name == "whatsapp" %}
+                                    <div class="input-group-append">
+                                        <button class="btn btn-submit btn-outline-success" type="button"
+                                            data-action="click-to-whatsapp"
+                                            data-campaign-id="{{ campana.id }}"
+                                            data-contact-id="{{ contacto.id }}"
+                                            data-whatsapp="{{ field.value }}">
+                                            <i class="fab fa-lg fa-whatsapp"></i>
+                                        </button>
+                                    </div>
+                                    {% elif field.name in campos_telefono %}
+                                    <div class="input-group-append">
+                                        <button class="btn btn-submit btn-outline-primary" type="button"
+                                            onclick="makeClick2Call('{{ campana.id }}', '{{ campana.type }}', '{{ contacto.id }}', '{{ field.value }}', 'agendas');">
+                                            <i class="fa fa-phone"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                     {% endif %}

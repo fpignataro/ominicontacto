@@ -3,7 +3,7 @@
 
 'use strict';
 {
-    function addField(fieldsContainerElem, name, is_phone, is_external_id) {
+    function addField(fieldsContainerElem, name, is_phone, is_external_id, is_whatsapp) {
         fieldsContainerElem.append(`
             <div class="form-row align-items-center" >
                 <div class="col-auto">
@@ -14,6 +14,14 @@
                         <label class="form-check-label">
                             <input class="form-check-input" type="checkbox" name="is-phone" ${is_phone ? 'checked' : ''}>
                             ${gettext('Campos de teléfono')}
+                        </label>
+                    </div>
+                </div>
+                <div class="col-auto ml-4">
+                    <div class="form-check">
+                        <label class="form-check-label">
+                            <input class="form-check-input" type="radio" name="is-whatsapp" ${is_whatsapp ? 'checked' : ''}>
+                            ${gettext('Número de Whatsapp')}    
                         </label>
                     </div>
                 </div>
@@ -42,6 +50,7 @@
     ) {
         const {
             col_id_externo,
+            col_whatsapp,
             cols_telefono,
             nombres_de_columnas,
             ...restProps
@@ -53,6 +62,7 @@
                 nombre,
                 cols_telefono.includes(index),
                 col_id_externo === index,
+                col_whatsapp === index,
             );
         });
 
@@ -71,6 +81,7 @@
                 ...restProps,
                 nombres_de_columnas: [],
                 col_id_externo: null,
+                col_whatsapp: null,
                 cols_telefono: [],
                 cant_col: 0,
             };
@@ -83,6 +94,9 @@
                     }
                     if ($(row).find('input[name="is-external-id"]').prop('checked')) {
                         formFieldValue.col_id_externo = formFieldValue.cant_col;
+                    }
+                    if ($(row).find('input[name="is-whatsapp"]').prop('checked')) {
+                        formFieldValue.col_whatsapp = formFieldValue.cant_col;
                     }
                     formFieldValue.cant_col += 1;
                 }

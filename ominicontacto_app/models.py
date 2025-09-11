@@ -2191,6 +2191,30 @@ class MetadataBaseDatosContactoDTO(object):
             return self._metadata['nombres_de_columnas'][self.columna_id_externo]
         return None
 
+    @property
+    def columna_whatsapp(self):
+        try:
+            return self._metadata['col_whatsapp']
+        except KeyError:
+            return None
+
+    @columna_whatsapp.setter
+    def columna_whatsapp(self, value):
+        """
+        Parametros:
+        - Un entero que indica la columna con campo whatsapp.
+        """
+        if value is None:
+            del self._metadata['col_whatsapp']
+        else:
+            self._metadata['col_whatsapp'] = value
+
+    @property
+    def nombre_campo_whatsapp(self):
+        if self.columna_whatsapp is not None:
+            return self._metadata['nombres_de_columnas'][self.columna_whatsapp]
+        return None
+
     # ----
 
     @property
@@ -2742,6 +2766,7 @@ class Contacto(models.Model):
     objects = ContactoManager()
 
     telefono = models.CharField(max_length=128)
+    whatsapp = models.CharField(max_length=128, blank=True)
     datos = models.TextField()
     bd_contacto = models.ForeignKey(
         'BaseDatosContacto',

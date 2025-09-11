@@ -29,6 +29,7 @@ from rest_framework import response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework import decorators
+from rest_framework import exceptions
 from rest_framework.authentication import SessionAuthentication
 from api_app.views.permissions import TienePermisoOML
 from api_app.authentication import ExpiringTokenAuthentication
@@ -195,6 +196,69 @@ class ConversacionNuevaSerializer(ConversacionSerializer):
 class ConversacionEnCursoSerializer(ConversacionSerializer):
     is_transfer_agent = serializers.BooleanField()
     number_messages = serializers.IntegerField()
+
+
+class OpenSerializer(serializers.Serializer):
+
+    campaign = serializers.PrimaryKeyRelatedField(queryset=Campana.objects.all(), write_only=True)
+    contact = serializers.PrimaryKeyRelatedField(queryset=Contacto.objects.all(), write_only=True)
+    whatsapp = serializers.CharField(write_only=True)
+
+    conversation = serializers.PrimaryKeyRelatedField(read_only=True)
+    conversation_granted = serializers.BooleanField(read_only=True, default=True)
+
+    def validate(self, data):
+        queryset = ConversacionWhatsapp.objects.filter(
+            destination=data["whatsapp"],
+            expire__gte=timezone.now(),
+            is_disposition=False,
+        )
+
+        # from ominicontacto.dbinst import query_logger
+        # with query_logger():
+        #     print(queryset)
+
+        errors = {
+            "agent": [],
+            "campaign": [],
+            "contact": [],
+        }
+        try:
+            conversation = queryset.get()
+            data["conversation"] = conversation
+            if conversation.agent is None:
+                data["conversation_granted"] = False
+            if conversation.agent and conversation.agent != self.context["agent"]:
+                errors["agent"].append(
+                    _(
+                        "Existe una conversación en curso con el agente: '{0}'.".format(
+                            self.context["agent"]
+                        )
+                    )
+                )
+            if conversation.campana != data["campaign"]:
+                errors["campaign"].append(
+                    _(
+                        "Existe una conversación en curso para la campaña: '{0}'.".format(
+                            conversation.campana
+                        )
+                    )
+                )
+            if conversation.client is None:
+                errors["contact"].append(_("El contacto no está registrado."))
+            if conversation.client and conversation.client != data["contact"]:
+                errors["contact"].append(_("Existe una conversación en curso para otro contacto."))
+            if any(errors.values()):
+                raise serializers.ValidationError({
+                    k: v for k, v in errors.items() if v
+                })
+        except ConversacionWhatsapp.DoesNotExist:
+            raise exceptions.NotFound()
+        except ConversacionWhatsapp.MultipleObjectsReturned:
+            # TODO: este caso no debería darse, si se diera, posiblemente tengamos que actualizar
+            # la queryset
+            raise
+        return data
 
 
 class ViewSet(viewsets.ViewSet):
@@ -878,3 +942,14 @@ class ViewSet(viewsets.ViewSet):
                 data=get_response_data(
                     status=HttpResponseStatus.ERROR, data={}, message=_(str(e))),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @decorators.action(detail=False, methods=["get"])
+    def open(self, request):
+        serializer = OpenSerializer(
+            data=request.query_params,
+            context={
+                "agent": request.user.get_agente_profile(),
+            },
+        )
+        serializer.is_valid(raise_exception=True)
+        return response.Response(serializer.data)
