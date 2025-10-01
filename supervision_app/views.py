@@ -113,8 +113,9 @@ class SupervisionCampanasDialerView(TemplateView):
             campanas = supervisor.campanas_asignadas_actuales()
         campanas = campanas \
             .filter(type=Campana.TYPE_DIALER) \
-            .filter(estado__in=[Campana.ESTADO_ACTIVA, Campana.ESTADO_PAUSADA]) \
-            .order_by('id')
+            .filter(estado__in=[Campana.ESTADO_ACTIVA,
+                                Campana.ESTADO_PAUSADA,
+                                Campana.ESTADO_INACTIVA]).order_by('id')
         context['nombres_campanas'] = ",".join([x.nombre for x in campanas])
         context['campanas_ids'] = ",".join([str(x.id) for x in campanas])
         context['campanas'] = {x.id: {'name': x.nombre, 'target': x.objetivo} for x in campanas}
