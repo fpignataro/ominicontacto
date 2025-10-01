@@ -17,6 +17,8 @@
 
 from ominicontacto_app.models import Campana
 from reportes_app.models import LlamadaLog
+from ominicontacto_app.services.dialer import wombat_habilitado
+from ominicontacto_app.services.redis.connection import create_redis_connection
 
 
 def get_event_subscription_key(event_code):
@@ -100,15 +102,25 @@ class AgentsDataManager(AbstractDataManager):
 
 class DialerDataManager(AbstractDataManager):
     ID = 'DIALER'
-    CALL_EVENTS = ('DIAL', 'ANSWER', ) + LlamadaLog.EVENTOS_NO_CONEXION \
+    CALL_EVENTS = ('DIAL', 'CONNECT', ) + LlamadaLog.EVENTOS_NO_CONEXION \
         + LlamadaLog.EVENTOS_NO_CONTACTACION \
         + LlamadaLog.EVENTOS_NO_DIALOGO
+    PENDING_RETRIES = 'NO CONTACTS WITH PENDING ATTEMPTS'
+    PENDING_INITIAL = 'PENDING_INITIAL_CONTACT_ATTEMPTS'
+
+    def __init__(self, redis_oml_connection, redis_calldata_connection):
+        super().__init__(redis_oml_connection, redis_calldata_connection)
+        if not wombat_habilitado():
+            self.redis_dialer_connection = create_redis_connection(db=3)
+
+    # canales: Obtener el valor de dialer_pstn_calls dentro de OML:CAMP:<id>
 
     def subscribe(self, campaigns, user):
         manager_id = self._manager_id(user)
         initial_data = {}
 
-        campaigns = campaigns.filter(type=Campana.TYPE_DIALER)
+        campaigns = campaigns.filter(type=Campana.TYPE_DIALER).filter(
+            estado__in=[Campana.ESTADO_ACTIVA, Campana.ESTADO_PAUSADA, Campana.ESTADO_INACTIVA])
         for campaign in campaigns:
             # Call Events
             for event in self.CALL_EVENTS:
@@ -119,6 +131,17 @@ class DialerDataManager(AbstractDataManager):
             event_code = f'DISPOSITION:{campaign.id}'
             key = get_event_subscription_key(event_code)
             self.redis_calldata_connection.sadd(key, manager_id)
+            # OMniDialer Events
+            if not wombat_habilitado():
+                event_code = f'STATS:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.sadd(key, manager_id)
+                event_code = f'STATUSCHANGE:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.sadd(key, manager_id)
+                event_code = f'CALLS:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.sadd(key, manager_id)
 
             initial_data[campaign.id] = self._get_initial_data(campaign)
 
@@ -131,6 +154,7 @@ class DialerDataManager(AbstractDataManager):
         # Así no quedarian suscripciones fantasmas en caso de que cambien asignaciones de campañas.
 
         manager_id = self._manager_id(user)
+        campaigns = campaigns.filter(type=Campana.TYPE_DIALER)
         for campaign in campaigns:
             # CAMP event Types
             for event in self.CALL_EVENTS:
@@ -141,6 +165,17 @@ class DialerDataManager(AbstractDataManager):
             event_code = f'DISPOSITIONS:{campaign.id}'
             key = get_event_subscription_key(event_code)
             self.redis_calldata_connection.srem(key, manager_id)
+            # OMniDialer Events
+            if not wombat_habilitado():
+                event_code = f'STATS:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.srem(key, manager_id)
+                event_code = f'STATUSCHANGE:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.srem(key, manager_id)
+                event_code = f'CALLS:{campaign.id}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.srem(key, manager_id)
 
     def _get_initial_data(self, campaign):
         calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
@@ -151,8 +186,8 @@ class DialerDataManager(AbstractDataManager):
         amd = 0
         connections_lost = 0
         dispositions = 0
+        pending = 0
         status = campaign.estado
-        # pending =  0  # TODO: Obtener segun el dialer
 
         # in_call = 0   # TODO: Se puede calcular llamadas en curso haciendo:
         #               'DIAL' + 'ANSWER' + 'CONNECT' + 'ENTERQUEUE'
@@ -181,7 +216,7 @@ class DialerDataManager(AbstractDataManager):
         if response:
             dispositions = response
 
-        return {
+        initial_data = {
             'dialed': dialed,
             'attended': attended,
             'not_attended': not_attended,
@@ -189,7 +224,39 @@ class DialerDataManager(AbstractDataManager):
             'connections_lost': connections_lost,
             'dispositions': dispositions,
             'status': status,
+            'pending': pending,
+            'channels': '-'
         }
+
+        # Get pending
+        if not wombat_habilitado():
+            pending_initial, pending_retries = self._get_omnidialer_pending(campaign)
+            initial_data['pending_initial'] = pending_initial
+            initial_data['pending_retries'] = pending_retries
+            initial_data['pending'] = pending_initial + pending_retries
+            initial_data['channels'] = self._get_omnidialer_channels(campaign)
+        else:
+            initial_data['pending'] = self._get_wombat_pending(campaign)
+
+        return initial_data
+
+    def _get_omnidialer_pending(self, campaign):
+        CAMP_STATS_KEY = 'CAMP:{0}:COUNTER'
+        key = CAMP_STATS_KEY.format(campaign.id)
+        initial = self.redis_dialer_connection.hget(key, self.PENDING_INITIAL)
+        retries = self.redis_dialer_connection.hget(key, self.PENDING_RETRIES)
+        initial = int(initial) if initial else 0
+        retries = int(retries) if retries else 0
+        return [initial, retries]
+
+    def _get_wombat_pending(self, campaign):
+        return '-'  # TODO
+
+    def _get_omnidialer_channels(self, campaign):
+        CAMP_CHANNELS_KEY = 'OML:CALLS:{0}:DIALER'
+        key = CAMP_CHANNELS_KEY.format(campaign.id)
+        calls = self.redis_dialer_connection.get(key)
+        return int(calls) if calls else 0
 
     def update(self, event_data):
         if event_data['type'] == 'CAMP':
@@ -218,6 +285,25 @@ class DialerDataManager(AbstractDataManager):
                     'field': 'dispositions',
                     'delta': delta
                 }
+        if event_data['type'] == 'STATS':
+            update_data = {'campaign_id': event_data['camp_id'], }
+            if self.PENDING_INITIAL in event_data:
+                update_data['field'] = 'pending'
+                update_data['pending_initial'] = event_data[self.PENDING_INITIAL]
+            if self.PENDING_RETRIES in event_data:
+                update_data['field'] = 'pending'
+                update_data['pending_retries'] = event_data[self.PENDING_RETRIES]
+            return update_data
+        if event_data['type'] == 'STATUSCHANGE':
+            update_data = {'campaign_id': event_data['camp_id'],
+                           'field': 'status',
+                           'value': event_data['status']}
+            return update_data
+        if event_data['type'] == 'CALLS':
+            update_data = {'campaign_id': event_data['camp_id'],
+                           'field': 'channels',
+                           'channels': event_data['calls']}
+            return update_data
 
     # ================================================
     # TODO: ESTE CODIGO QUEDA COMO REFERENCIA DE COMO SE CALCULABA ANTES - Borrarlo
@@ -432,21 +518,22 @@ class OutboundDataManager(AbstractDataManager):
         # TODO Analizar solo enviar data de campañas con datos
         return initial_data
 
-    def unsubscribe(self, campaign, user):
+    def unsubscribe(self, campaigns, user):
         # Analizar recorrer todas las suscripciones usando un
         # scan('OML:SUPERVISION:EVENT_SUBSCRIPTIONS:*') eliminando el manager_id de todas.
         # Así no quedarian suscripciones fantasmas en caso de que cambien asignaciones de campañas.
-
         manager_id = self._manager_id(user)
-        # CAMP event Types
-        for event in self.CALL_EVENTS:
-            event_code = f'CAMP:{campaign.id}:{event}'
+        campaigns = campaigns.filter(type__in=self.CAMP_TYPES)
+        for campaign in campaigns:
+            # CAMP event Types
+            for event in self.CALL_EVENTS:
+                event_code = f'CAMP:{campaign.id}:{event}'
+                key = get_event_subscription_key(event_code)
+                self.redis_calldata_connection.srem(key, manager_id)
+            # DISPOSITION
+            event_code = f'DISPOSITION:{campaign.id}'
             key = get_event_subscription_key(event_code)
             self.redis_calldata_connection.srem(key, manager_id)
-        # DISPOSITION
-        event_code = f'DISPOSITIONS:{campaign.id}'
-        key = get_event_subscription_key(event_code)
-        self.redis_calldata_connection.srem(key, manager_id)
 
     def _get_initial_data(self, campaign):
         calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
