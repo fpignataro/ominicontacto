@@ -46,6 +46,7 @@ from ominicontacto_app.services.creacion_queue import (ActivacionQueueService,
 from ominicontacto_app.tests.factories import COLUMNAS_DB_DEFAULT
 from ominicontacto_app.tests.factories import COLUMNAS_DB_DEFAULT_TELEFONO
 from ominicontacto_app.tests.factories import COLUMNAS_DB_DEFAULT_ID_EXTERNO
+from ominicontacto_app.tests.factories import COLUMNAS_DB_DEFAULT_WHATSAPP
 from ominicontacto_app.utiles import cast_datetime_part_date, obtener_opciones_columnas_bd
 
 import logging as logging_
@@ -517,6 +518,7 @@ class CampanaEntranteCreateView(CampanaEntranteMixin, SessionWizardView):
                         "nombres_de_columnas": COLUMNAS_DB_DEFAULT,
                         "cols_telefono": COLUMNAS_DB_DEFAULT_TELEFONO,
                         "col_id_externo": COLUMNAS_DB_DEFAULT_ID_EXTERNO,
+                        "col_whatsapp": COLUMNAS_DB_DEFAULT_WHATSAPP,
                     },
                     cls=json.DjangoJSONEncoder
                 )

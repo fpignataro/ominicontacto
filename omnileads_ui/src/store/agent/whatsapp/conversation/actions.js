@@ -297,6 +297,27 @@ export default {
             };
         }
     },
+    async agtWhatsCoversationAssignContact ({ commit }, { conversationId, contactId }) {
+        try {
+            if (!conversationId) {
+                return {
+                    status: HTTP_STATUS.ERROR,
+                    message: 'Error al asignar un contacto a una conversacion'
+                };
+            }
+            return await service.assignContact({
+                conversationId,
+                contactId
+            });
+        } catch (error) {
+            console.error('===> ERROR al asignar un contacto a una conversacion');
+            console.error(error);
+            return {
+                status: HTTP_STATUS.ERROR,
+                message: 'Error al asignar un contacto a una conversacion'
+            };
+        }
+    },
     agtWhatsSetCoversationMessages ({ commit }, messages = []) {
         try {
             commit('agtWhatsConversationInitMessages', messages);

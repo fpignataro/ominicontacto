@@ -36,6 +36,7 @@ module.exports = {
     publicPath,
     lintOnSave: process.env.NODE_ENV !== 'production',
     pages: {
+        index: getPageConfig('index'),
         // Supervisor Pages
         supervisor_supervision_dashboard: getPageConfig('supervisor_supervision_dashboard'),
         supervisor_security_audit: getPageConfig('supervisor_security_audit'),

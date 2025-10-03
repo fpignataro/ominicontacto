@@ -63,7 +63,7 @@ async def inbound_chat_event(line, timestamp, message_id, origen, content, sende
                     campana = destination_entrante.content_object
                 if campana:
                     client = campana.bd_contacto.contactos.filter(
-                        telefono=origen).last()
+                        whatsapp=origen).last()
                 conversation = ConversacionWhatsapp.objects.create(
                     line=line,
                     client=client,
@@ -151,7 +151,7 @@ async def asignar_campana(line, conversation, content, context):
             if isinstance(destino.destino_siguiente.content_object, Campana):
                 campana = destino.destino_siguiente.content_object
                 client = campana.bd_contacto.contactos.filter(
-                    telefono=conversation.destination).last()
+                    whatsapp=conversation.destination).last()
                 conversation.campana = campana
                 conversation.client = client
                 conversation.save()

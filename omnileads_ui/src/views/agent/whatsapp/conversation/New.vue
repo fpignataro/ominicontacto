@@ -3,7 +3,11 @@
     <h2>
       {{ $t("models.whatsapp.conversation.new.title") }}
     </h2>
-    <Form @closeModalEvent="closeModal" />
+    <Form @closeModalEvent="closeModal"
+        v-bind:with-campaign="campaign ? parseInt(campaign) : null"
+        v-bind:with-contact="contact ? parseInt(contact) : null"
+        v-bind:with-whatsapp="whatsapp"
+    />
   </div>
 </template>
 
@@ -15,6 +19,17 @@ import { HTTP_STATUS } from '@/globals';
 
 export default {
     inject: ['$helpers'],
+    props: {
+        campaign: {
+            type: String
+        },
+        contact: {
+            type: String
+        },
+        whatsapp: {
+            type: String
+        }
+    },
     components: {
         Form
     },
@@ -58,6 +73,7 @@ export default {
                 }
             });
             window.parent.document.dispatchEvent(event);
+            parent.postMessage({ id: 'hide.bs-modal' });
         }
     }
 };

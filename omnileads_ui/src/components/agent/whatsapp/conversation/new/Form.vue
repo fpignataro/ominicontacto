@@ -2,7 +2,7 @@
   <div>
     <div class="card">
       <div class="grid formgrid mt-4">
-        <div class="field sm:col-12 md:col-6 lg:col-6 xl:col-6">
+        <div class="field sm:col-12 md:col-6 lg:col-6 xl:col-6" v-if="!withCampaign">
           <label
             :class="{
               'p-error': v$.form.campaign.$invalid && submitted,
@@ -93,7 +93,7 @@
             }}
           </small>
         </div>
-        <div class="field sm:col-12 md:col-6 lg:col-6 xl:col-6">
+        <div class="field sm:col-12 md:col-6 lg:col-6 xl:col-6" v-if="!withContact">
           <label
             :class="{
               'p-error': v$.form.contact.$invalid && submitted,
@@ -192,6 +192,11 @@ import ModalNewContact from '@/components/agent/whatsapp/contact/ModalNewContact
 import { WHATSAPP_LOCALSTORAGE_EVENTS } from '@/globals/agent/whatsapp';
 
 export default {
+    props: {
+        withCampaign: { type: Number },
+        withContact: { type: Number },
+        withWhatsapp: { type: String }
+    },
     setup: () => ({ v$: useVuelidate() }),
     validations () {
         return {
@@ -503,6 +508,20 @@ export default {
                         this.campaigns = this.campaigns.filter(
                             (c) => c.type !== CAMPAIGN_TYPES.DIALER
                         );
+                    }
+                    if (this.withCampaign) {
+                        this.form.campaign = this.withCampaign;
+                        this.getDataByCampaign(this.withCampaign);
+                    }
+                    if (this.withContact) {
+                        this.form.contact = this.withContact;
+                        if (this.withContact) {
+                            this.contacts = [{
+                                id: this.withContact,
+                                data: {},
+                                phone: this.withWhatsapp
+                            }];
+                        }
                     }
                 }
             },

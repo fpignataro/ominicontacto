@@ -33,6 +33,7 @@ export default {
                 }
             });
             window.parent.document.dispatchEvent(event);
+            parent.postMessage({ id: 'hide.bs-modal' });
         }
     }
 };

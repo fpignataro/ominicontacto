@@ -171,6 +171,9 @@ export default {
         }
     },
     whatsapp: {
+        contact: {
+            id: 'ID'
+        },
         provider: {
             nombre: 'Name',
             tipo_proveedor: 'Provider',

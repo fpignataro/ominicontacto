@@ -233,7 +233,12 @@ export default {
             new: 'Crear contacto',
             edit: 'Editar contacto',
             detail: 'Informacion de contacto',
-            info: 'El contacto aun no esta registrado, puedes identificarlo',
+            ident1: 'El contacto aun no esta registrado, puedes identificarlo',
+            ident2: 'Creando',
+            ident3: 'uno nuevo o',
+            ident4: 'Seleccionando',
+            ident5: 'uno que ya exista',
+            campaign: 'Contactos de la campaña',
             settings: {
                 show_info: 'Mostrar informacion',
                 edit_info: 'Editar usuario'

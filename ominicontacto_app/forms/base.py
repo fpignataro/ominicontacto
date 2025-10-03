@@ -550,6 +550,10 @@ class CamposDeBaseDeDatosForm(forms.Form):
         widget=forms.CheckboxSelectMultiple())
     id_externo = forms.ChoiceField(required=False,
                                    widget=forms.Select(attrs={'class': 'form-control'}))
+    whatsapp = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={"class": "form-control"})
+    )
 
     def __init__(self, nombres_campos, *args, **kwargs):
         super(CamposDeBaseDeDatosForm, self).__init__(*args, **kwargs)
@@ -558,13 +562,22 @@ class CamposDeBaseDeDatosForm(forms.Form):
         id_externo_choices = [EMPTY_CHOICE]
         id_externo_choices.extend(tuple([(x, x) for x in nombres_campos]))
         self.fields['id_externo'].choices = id_externo_choices
+        self.fields['whatsapp'].choices = [EMPTY_CHOICE] + [(x, x) for x in nombres_campos]
 
     def clean(self):
         campos_telefonicos = self.cleaned_data.get('campos_telefonicos', [])
+        id_externo = self.cleaned_data.get('id_externo')
+        whatsapp = self.cleaned_data.get('whatsapp')
         if len(campos_telefonicos) > 0:
-            id_externo = self.cleaned_data.get('id_externo')
             if id_externo in campos_telefonicos:
                 msg = _('No se puede elegir un campo telefónico como id_externo')
+                raise forms.ValidationError(msg)
+        if whatsapp:
+            if whatsapp in campos_telefonicos:
+                msg = _('No se puede elegir un campo telefónico como whatsapp')
+                raise forms.ValidationError(msg)
+            if whatsapp == id_externo:
+                msg = _('No pueden coincidir el campo whatsapp con el de id_externo')
                 raise forms.ValidationError(msg)
         return super(CamposDeBaseDeDatosForm, self).clean()
 
@@ -578,6 +591,13 @@ class CamposDeBaseDeDatosForm(forms.Form):
     def columna_id_externo(self):
         # Devuelvo el indice del nombre de la columnas del id externo
         seleccionado = self.cleaned_data.get('id_externo', '')
+        if seleccionado in self.nombres_campos:
+            return self.nombres_campos.index(seleccionado)
+        return None
+
+    @property
+    def columna_whatsapp(self):
+        seleccionado = self.cleaned_data.get('whatsapp', '')
         if seleccionado in self.nombres_campos:
             return self.nombres_campos.index(seleccionado)
         return None
@@ -1317,9 +1337,10 @@ class FormularioNuevoContacto(forms.ModelForm):
 
     class Meta:
         model = Contacto
-        fields = ('telefono', 'id_externo', 'confirmar_duplicado')
+        fields = ('telefono', 'whatsapp', 'id_externo', 'confirmar_duplicado')
         widgets = {
             "telefono": forms.TextInput(attrs={'class': 'form-control'}),
+            "whatsapp": forms.TextInput(attrs={'class': 'form-control'}),
             "id_externo": forms.TextInput(attrs={'class': 'form-control'}),
         }
 
@@ -1352,6 +1373,7 @@ class FormularioNuevoContacto(forms.ModelForm):
             self.fields['telefono'].required = False
         nombre_campo_telefono = bd_metadata.nombre_campo_telefono
         nombre_campo_id_externo = bd_metadata.nombre_campo_id_externo
+        nombre_campo_whatsapp = bd_metadata.nombre_campo_whatsapp
         for campo in bd_metadata.nombres_de_columnas:
             bloquear_campo = campo in campos_a_bloquear
             ocultar_campo = campo in campos_a_ocultar
@@ -1373,6 +1395,15 @@ class FormularioNuevoContacto(forms.ModelForm):
                     self.fields['id_externo'].required = False
                     if bloquear_campo:
                         self.fields['id_externo'].disabled = True
+            elif campo == nombre_campo_whatsapp:
+                if ocultar_campo:
+                    self.fields.pop('whatsapp')
+                else:
+                    nombre_campo = convertir_ascii_string(campo)
+                    self.fields['whatsapp'].label = nombre_campo
+                    self.fields['whatsapp'].required = False
+                    if bloquear_campo:
+                        self.fields['whatsapp'].disabled = True
             elif not ocultar_campo:
                 nombre_campo = self.get_nombre_input(campo)
                 self.fields[nombre_campo] = forms.CharField(
@@ -1386,6 +1417,9 @@ class FormularioNuevoContacto(forms.ModelForm):
 
         if nombre_campo_id_externo is None:
             self.fields.pop('id_externo')
+
+        if nombre_campo_whatsapp is None:
+            self.fields.pop('whatsapp')
 
         self.bd_metadata = bd_metadata
 
@@ -2588,6 +2622,9 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
             "col_id_externo": {
                 "type": ["integer", "null"],
             },
+            "col_whatsapp": {
+                "type": ["integer", "null"],
+            },
         },
         "required": [
             "prim_fila_enc",
@@ -2614,9 +2651,9 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
         try:
             jsonschema.validate(metadata, self.metadata_schema)
         except jsonschema.ValidationError as error:
-            if error.path[0] == "cant_col" and error.validator == "minimum":
+            if error.path and error.path[0] == "cant_col" and error.validator == "minimum":
                 raise forms.ValidationError(_("Es requerido al menos un campo."))
-            if error.path[0] == "cols_telefono" and error.validator == "minItems":
+            if error.path and error.path[0] == "cols_telefono" and error.validator == "minItems":
                 raise forms.ValidationError(_("Es requerido al menos un campo telefónico."))
             raise forms.ValidationError(error)
         if metadata["cant_col"] != len(metadata["nombres_de_columnas"]):
@@ -2625,4 +2662,17 @@ class CustomBaseDatosContactoForm(forms.ModelForm):
             raise forms.ValidationError(_("El valor de {0} es incorrecto".format('cols_telefono')))
         if metadata["col_id_externo"] and metadata["col_id_externo"] >= metadata["cant_col"]:
             raise forms.ValidationError(_("El valor de {0} es incorrecto".format('col_id_externo')))
+        if metadata.get("col_whatsapp") and metadata["col_whatsapp"] >= metadata["cant_col"]:
+            raise forms.ValidationError(_("El valor de {0} es incorrecto".format('col_whatsapp')))
+        if metadata["col_id_externo"]:
+            if metadata["col_id_externo"] in metadata["cols_telefono"]:
+                msg = _('No se puede elegir un campo telefónico como id_externo')
+                raise forms.ValidationError(msg)
+        if metadata.get("col_whatsapp"):
+            if metadata["col_whatsapp"] in metadata["cols_telefono"]:
+                msg = _('No se puede elegir un campo telefónico como whatsapp')
+                raise forms.ValidationError(msg)
+            if metadata["col_whatsapp"] == metadata["col_id_externo"]:
+                msg = _('No pueden coincidir el campo whatsapp con el de id_externo')
+                raise forms.ValidationError(msg)
         return value

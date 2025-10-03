@@ -14,12 +14,12 @@
         severity="warn"
         :closable="false"
         class="mt-0 mb-3"
-        >{{ $t("views.whatsapp.contact.info") }}
-        <b
-          ><a @click="createContact">{{
-            $t("globals.here").toUpperCase()
-          }}</a></b
         >
+        {{ $t("views.whatsapp.contact.ident1") }}
+        <a @click="createContact">{{ $t("views.whatsapp.contact.ident2") }}</a>
+        {{ $t("views.whatsapp.contact.ident3") }}
+        <a @click="assignContact(agtWhatsCoversationInfo.id)">{{ $t("views.whatsapp.contact.ident4") }}</a>
+        {{ $t("views.whatsapp.contact.ident5") }}.
       </Message>
     </div>
     <div class="flex justify-content-between flex-wrap my-2">
@@ -69,6 +69,7 @@ import ListMessages from '@/components/agent/whatsapp/conversation/ListMessages'
 import { listenerStoreDataByAction } from '@/utils';
 import { COLORS } from '@/globals';
 import { WHATSAPP_LOCALSTORAGE_EVENTS } from '@/globals/agent/whatsapp';
+import { WhatsappConsumer } from '@/web_sockets/whatsapp_consumer';
 export default {
     inject: ['$helpers'],
     components: {
@@ -101,6 +102,7 @@ export default {
             WHATSAPP_LOCALSTORAGE_EVENTS.TRANSFER.DONE,
             this.transferDone
         );
+        WhatsappConsumer.getInstance({});
     },
     beforeUnmount () {
         window.parent.document.removeEventListener(
@@ -162,6 +164,15 @@ export default {
             });
             window.parent.document.dispatchEvent(modalEvent);
         },
+        assignContact (id) {
+            parent.postMessage({
+                id: 'show.bs-modal',
+                dialogCls: 'modal-lg',
+                dialogCss: { maxWidth: '80%' },
+                iframeCss: { height: '640px' },
+                src: `/static/omnileads-frontend/agent-whatsapp-assign-contact/${id}`
+            });
+        },
         checkExpirationDate () {
             if (this.agtWhatsCoversationInfo?.expire) {
                 const now = new Date();
@@ -217,10 +228,13 @@ export default {
 
 <style scoped>
 
+a {
+    color: blue;
+}
+
 a:hover {
   text-decoration: underline;
   cursor: pointer;
-  font-size: 130%;
 }
 
 .btn-border {

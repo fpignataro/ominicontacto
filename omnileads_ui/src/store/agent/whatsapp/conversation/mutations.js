@@ -7,6 +7,7 @@ const setClientInfo = (info = null) => {
     return {
         id: info && info.id ? info.id : null,
         phone: info && info.phone ? info.phone : null,
+        whatsapp: info && info.whatsapp ? info.whatsapp : null,
         data: info && info.data ? info.data : null,
         dispositionId: info && info.disposition ? info.disposition : null
     };
