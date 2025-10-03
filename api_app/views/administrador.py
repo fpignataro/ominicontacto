@@ -174,8 +174,15 @@ class SubirBaseContactosView(APIView):
             campos_telefono = self._procesa_campos_telefono(campos_telefono_str)
             id_externo = self._comprueba_campo_id_externo(id_externo)
 
-            self.base_datos_contacto_service.importa_contactos_desde_api(id, campos_telefono,
-                                                                         id_externo)
+            columna_whatsapp = self._comprueba_campo_columna_whatsapp(
+                self._obtiene_parametro(request, 'columna_whatsapp', True)
+            )
+            self.base_datos_contacto_service.importa_contactos_desde_api(
+                id,
+                campos_telefono,
+                id_externo,
+                columna_whatsapp,
+            )
             error = False
         except ValidationError:
             return Response(
@@ -235,6 +242,13 @@ class SubirBaseContactosView(APIView):
                 id_externo not in self.base_datos_contacto_service.parser.columnas:
             raise OmlError(_('campo de id externo no coincide con nombre de columna'))
         return id_externo
+
+    def _comprueba_campo_columna_whatsapp(self, columna_whatsapp):
+        columna_whatsapp = self._sanear_nombre_de_columna(columna_whatsapp)
+        if columna_whatsapp is not None and \
+                columna_whatsapp not in self.base_datos_contacto_service.parser.columnas:
+            raise OmlError(_('campo de whatsapp no coincide con nombre de columna'))
+        return columna_whatsapp
 
     def _sanear_nombre_de_columna(self, nombre):
         """Realiza saneamiento básico del nombre de la columna. Con basico

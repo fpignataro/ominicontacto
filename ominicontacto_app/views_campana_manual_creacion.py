@@ -41,6 +41,7 @@ from ominicontacto_app.views_campana_creacion import (CampanaWizardMixin,
                                                       COLUMNAS_DB_DEFAULT,
                                                       COLUMNAS_DB_DEFAULT_TELEFONO,
                                                       COLUMNAS_DB_DEFAULT_ID_EXTERNO,
+                                                      COLUMNAS_DB_DEFAULT_WHATSAPP,
                                                       mostrar_form_parametros_crm_form)
 from ominicontacto_app.utiles import cast_datetime_part_date
 
@@ -113,6 +114,7 @@ class CampanaManualCreateView(CampanaManualMixin, SessionWizardView):
                         "nombres_de_columnas": COLUMNAS_DB_DEFAULT,
                         "cols_telefono": COLUMNAS_DB_DEFAULT_TELEFONO,
                         "col_id_externo": COLUMNAS_DB_DEFAULT_ID_EXTERNO,
+                        "col_whatsapp": COLUMNAS_DB_DEFAULT_WHATSAPP,
                     },
                     cls=json.DjangoJSONEncoder
                 )

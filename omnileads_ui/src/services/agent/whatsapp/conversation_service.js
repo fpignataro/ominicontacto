@@ -140,6 +140,24 @@ export default class WhatsappConversationService extends BaseService {
         }
     }
 
+    async assignContact ({ conversationId, contactId }) {
+        try {
+            this.setPayload(HTTP.POST, JSON.stringify({
+                contact_pk: contactId
+            }));
+            const resp = await fetch(
+                this.urls.ChatAgentConversationAssignContact(conversationId),
+                this.payload
+            );
+            return await resp.json();
+        } catch (error) {
+            console.error(`ERROR al solicitar Conversacion (${conversationId})`);
+            return null;
+        } finally {
+            this.initPayload();
+        }
+    }
+
     async initNewConversation (data) {
         try {
             this.setPayload(HTTP.POST, JSON.stringify(data));

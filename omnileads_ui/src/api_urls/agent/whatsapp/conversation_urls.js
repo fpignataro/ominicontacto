@@ -10,6 +10,7 @@ export default {
     ChatAgentConversationsList: () => `${BASE_ROUTE}`,
     ChatAgentConversationsDetail: (chatId) => `${BASE_ROUTE}/${chatId}`,
     ChatAgentConversationRequest: (chatId) => `${BASE_ROUTE}/${chatId}/attend_chat`,
+    ChatAgentConversationAssignContact: (chatId) => `${BASE_ROUTE}/${chatId}/assign_contact`,
     ChatAgentNewConversation: () => `${BASE_ROUTE}/send_initing_conversation`,
     ChatMarkAsRead: () => `${BASE_ROUTE}/mark_as_read`
 };

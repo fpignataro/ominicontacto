@@ -2191,6 +2191,33 @@ class MetadataBaseDatosContactoDTO(object):
             return self._metadata['nombres_de_columnas'][self.columna_id_externo]
         return None
 
+    @property
+    def columna_whatsapp(self):
+        try:
+            return self._metadata['col_whatsapp']
+        except KeyError:
+            return None
+
+    @columna_whatsapp.setter
+    def columna_whatsapp(self, value):
+        """
+        Parametros:
+        - Un entero que indica la columna con campo whatsapp.
+        """
+        if value is None:
+            del self._metadata['col_whatsapp']
+        else:
+            assert isinstance(value, int), (
+                "'columna_whatsapp' debe ser int. Se recibio: {0}".format(type(value))
+            )
+            self._metadata['col_whatsapp'] = value
+
+    @property
+    def nombre_campo_whatsapp(self):
+        if self.columna_whatsapp is not None:
+            return self._metadata['nombres_de_columnas'][self.columna_whatsapp]
+        return None
+
     # ----
 
     @property
@@ -2293,9 +2320,14 @@ class MetadataBaseDatosContactoDTO(object):
         if not hasattr(self, '_nombres_de_columnas_de_datos'):
             try:
                 nombres_de_columnas = self._metadata['nombres_de_columnas']
-                self._nombres_de_columnas_de_datos = [x for x in nombres_de_columnas
-                                                      if not x == self.nombre_campo_telefono and
-                                                      not x == self.nombre_campo_id_externo]
+                self._nombres_de_columnas_de_datos = [
+                    columna for columna in nombres_de_columnas
+                    if columna not in (
+                        self.nombre_campo_telefono,
+                        self.nombre_campo_id_externo,
+                        self.nombre_campo_whatsapp
+                    )
+                ]
             except KeyError:
                 return []
 
@@ -2742,6 +2774,7 @@ class Contacto(models.Model):
     objects = ContactoManager()
 
     telefono = models.CharField(max_length=128)
+    whatsapp = models.CharField(max_length=128, blank=True)
     datos = models.TextField()
     bd_contacto = models.ForeignKey(
         'BaseDatosContacto',
@@ -2787,17 +2820,19 @@ class Contacto(models.Model):
             bd_metadata = self.bd_contacto.get_metadata()
             datos = self.lista_de_datos()
             pos_primer_telefono = bd_metadata.columnas_con_telefono[0]
-            if bd_metadata.columna_id_externo is not None:
-                # Inserto primero el de menor indice para que se respete el orden
-                if (pos_primer_telefono < bd_metadata.columna_id_externo):
-                    datos.insert(pos_primer_telefono, self.telefono)
-                    datos.insert(bd_metadata.columna_id_externo, self.id_externo)
-                else:
-                    datos.insert(bd_metadata.columna_id_externo, self.id_externo)
-                    datos.insert(pos_primer_telefono, self.telefono)
-            else:
-                datos.insert(pos_primer_telefono, self.telefono)
-
+            pos_and_val_of_attributes = sorted(
+                (
+                    pos_and_value for pos_and_value in (
+                        (pos_primer_telefono, self.telefono),
+                        (bd_metadata.columna_id_externo, self.id_externo),
+                        (bd_metadata.columna_whatsapp, self.whatsapp),
+                    )
+                    if pos_and_value[0] is not None
+                ),
+                key=lambda pos_and_val: pos_and_val[0]
+            )
+            for pos, val in pos_and_val_of_attributes:
+                datos.insert(pos, val)
             self.lista_datos_contacto = datos
         return self.lista_datos_contacto
 

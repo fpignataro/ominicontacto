@@ -39,6 +39,7 @@ from whatsapp_app.models import ConversacionWhatsapp
 class ListSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     phone = serializers.CharField(source='telefono')
+    whatsapp = serializers.CharField()
     data = serializers.SerializerMethodField()
     disposition = serializers.SerializerMethodField()
 
@@ -56,6 +57,7 @@ class RetriveSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'telefono',
+            'whatsapp',
             'datos',
             'bd_contacto',
         ]
@@ -329,6 +331,25 @@ class ViewSet(viewsets.ViewSet):
     @decorators.action(detail=False, methods=["post"])
     def search(self, request, campana_pk):
         try:
+            campana = Campana.objects.get(id=campana_pk)
+            search = request.data.get('search')
+            if search:
+                contactos = Contacto.objects.filter(
+                    Q(telefono__icontains=search) |
+                    Q(whatsapp__icontains=search) |
+                    Q(id_externo__icontains=search) |
+                    Q(datos__icontains=search),
+                    bd_contacto=campana.bd_contacto
+                )
+                serializer = ListSerializer(contactos, many=True)
+                return response.Response(
+                    data=get_response_data(
+                        status=HttpResponseStatus.SUCCESS,
+                        message=_('Se obtuvieron los contactos de forma exitosa'),
+                        data=serializer.data
+                    ),
+                    status=status.HTTP_200_OK
+                )
             values = request.data.values()
             q_list = [Q(datos__contains=x) for x in values]
             if 'dial_code' in request.data:
@@ -337,7 +358,6 @@ class ViewSet(viewsets.ViewSet):
                 q_list.append(Q(telefono=request.data['phone']))
             if 'name' in request.data:
                 q_list.append(Q(datos__icontains=request.data['name']))
-            campana = Campana.objects.get(id=campana_pk)
             ids_contactos_en_curso = ConversacionWhatsapp.objects\
                 .conversaciones_en_curso()\
                 .filter(campana_id=campana.pk, client_id__isnull=False)\
