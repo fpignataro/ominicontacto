@@ -37,6 +37,8 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
 
 {% block content %}
 <div class="container">
+    {{ opciones_calificacion|json_script:"opciones_calificacion" }}
+    {{ campos_telefono|json_script:"campos_telefono" }}
     <input class="hidden" value='{{ configuracion_sitio_externo|safe }}' id="configuracionSitioExterno">
 
     {% if call_data and call_data.Omlinroutename and campana.mostrar_nombre_ruta_entrante%}
