@@ -417,6 +417,8 @@ class CalificacionClienteFormView(FormView):
                 self.configuracion_sitio_externo = \
                     sitio_externo.get_configuracion_de_interaccion(
                         agente, self.campana, self.contacto, call_data)
+        opciones_calificacion = list(self.campana.opciones_calificacion.values_list(
+            'nombre', 'positiva'))
 
         return self.render_to_response(self.get_context_data(
             contacto=self.contacto,
@@ -428,6 +430,7 @@ class CalificacionClienteFormView(FormView):
             llamada_entrante=formulario_llamada_entrante,
             call_data=self.call_data,
             extra_client_data=extra_client_data,
+            opciones_calificacion=opciones_calificacion,
             configuracion_sitio_externo=json.dumps(self.configuracion_sitio_externo)))
 
     def post(self, request, *args, **kwargs):
