@@ -376,7 +376,6 @@ class CalificacionClienteFormView(FormView):
         return self.render_to_response(self.get_context_data(
             contacto=self.contacto,
             campos_telefono=campos_telefono,
-            nombre_campo_whatsapp=bd_metadata.nombre_campo_whatsapp,
             contacto_form=contacto_form,
             calificacion_form=calificacion_form,
             campana=self.campana,

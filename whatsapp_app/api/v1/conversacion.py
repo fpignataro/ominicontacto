@@ -208,7 +208,7 @@ class OpenSerializer(serializers.Serializer):
 
     def validate(self, data):
         queryset = ConversacionWhatsapp.objects.filter(
-            destination=data["whatsapp"],
+            Q(destination=data["whatsapp"]) | Q(client__whatsapp=data["whatsapp"]),
             expire__gte=timezone.now(),
             is_disposition=False,
         )
