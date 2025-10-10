@@ -20,7 +20,7 @@
                 <div class="col-auto ml-4">
                     <div class="form-check">
                         <label class="form-check-label">
-                            <input class="form-check-input" type="radio" name="is-whatsapp" ${is_whatsapp ? 'checked' : ''} onclick="if (this.checked) {this.checked = false}">
+                            <input class="form-check-input" type="radio" name="is-whatsapp" ${is_whatsapp ? 'checked' : ''}>
                             ${gettext('Número de Whatsapp')}    
                         </label>
                     </div>
@@ -28,7 +28,7 @@
                 <div class="col-auto ml-4">
                     <div class="form-check">
                         <label class="form-check-label">
-                            <input class="form-check-input" type="radio" name="is-external-id" ${is_external_id ? 'checked' : ''} onclick="if (this.checked) {this.checked = false}">
+                            <input class="form-check-input" type="radio" name="is-external-id" ${is_external_id ? 'checked' : ''}>
                             ${gettext('Id externo')}
                         </label>
                     </div>
@@ -55,7 +55,7 @@
             nombres_de_columnas,
             ...restProps
         } = JSON.parse(formFieldElem.val());
-        
+
         nombres_de_columnas.forEach(function(nombre, index) {
             addField(
                 fieldsContainerElem,
@@ -102,6 +102,24 @@
                 }
             });
             formFieldElem.val(JSON.stringify(formFieldValue));
+        });
+
+        // Check/uncheck radio button using javascript and html
+        // https://stackoverflow.com/a/79769030
+        // document.querySelectorAll('input[type=\"radio\"]').forEach((radio) => {
+        //     radio.addEventListener("click", (event) => {
+        //     });
+        // });
+        $(formElem).on('click', 'input[type="radio"]', function(event) {
+            if(event.target.dataset.checked == 'true') {
+                event.target.checked = false;
+                delete event.target.dataset.checked;
+                event.target.dispatchEvent(new Event('change'));
+            } else {
+                for(const el of document.querySelectorAll(`input[name="${event.target.name}"]`))
+                    delete el.dataset.checked;
+                event.target.dataset.checked = 'true';
+            }
         });
 
         return {
