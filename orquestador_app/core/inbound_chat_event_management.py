@@ -16,7 +16,6 @@
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
 import json
-from django.db import models
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 from configuracion_telefonia_app.models import DestinoEntrante
@@ -64,9 +63,7 @@ async def inbound_chat_event(line, timestamp, message_id, origen, content, sende
                     campana = destination_entrante.content_object
                 if campana:
                     client = campana.bd_contacto.contactos.filter(
-                        models.Q(whatsapp=sender['dial_code']) |
-                        models.Q(whatsapp=sender['phone'])
-                    ).last()
+                        whatsapp=origen).last()
                 conversation = ConversacionWhatsapp.objects.create(
                     line=line,
                     client=client,
@@ -128,7 +125,7 @@ async def inbound_chat_event(line, timestamp, message_id, origen, content, sende
 
             if not conversation.campana:
                 if type == 'list_reply':
-                    await asignar_campana(line, conversation, content, context, sender)
+                    await asignar_campana(line, conversation, content, context)
                 else:
                     print('primer menu')
                     autoreponse_destino_interactivo(line, line.destino, conversation)
@@ -137,7 +134,7 @@ async def inbound_chat_event(line, timestamp, message_id, origen, content, sende
         print("inbound_chat_event >>>>>>>> Error: ", e)
 
 
-async def asignar_campana(line, conversation, content, context, sender):
+async def asignar_campana(line, conversation, content, context):
     try:
         try:
             mensaje_origen = MensajeWhatsapp.objects.get(message_id=context['gsId'])  # gupshup
@@ -154,9 +151,7 @@ async def asignar_campana(line, conversation, content, context, sender):
             if isinstance(destino.destino_siguiente.content_object, Campana):
                 campana = destino.destino_siguiente.content_object
                 client = campana.bd_contacto.contactos.filter(
-                    models.Q(whatsapp=sender['dial_code']) |
-                    models.Q(whatsapp=sender['phone'])
-                ).last()
+                    whatsapp=conversation.destination).last()
                 conversation.campana = campana
                 conversation.client = client
                 conversation.save()
