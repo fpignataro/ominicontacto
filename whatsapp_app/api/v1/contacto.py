@@ -75,6 +75,7 @@ class CreateSerializer(serializers.ModelSerializer):
             'telefono',
             'datos',
             'bd_contacto',
+            'whatsapp',
         ]
 
     def es_campo_telefonico(self, field):
@@ -114,6 +115,10 @@ class CreateSerializer(serializers.ModelSerializer):
             data['telefono'] = self.validar_telefono(telefono, telefono_val)
         else:
             raise serializers.ValidationError({telefono: _('campo requerido')})
+        nombre_campo_whatsapp = metadata.nombre_campo_whatsapp
+        if nombre_campo_whatsapp in data['datos']:
+            whatsapp = data['datos'].pop(nombre_campo_whatsapp)
+            data['whatsapp'] = self.validar_telefono(nombre_campo_whatsapp, whatsapp)
         if set(data['datos'].keys()).issubset(set(campos_bd)):
             if set(data['datos'].keys()).issuperset(set(mandatory)):
                 data['datos'] = self.get_datos_json(data['datos'])
@@ -136,6 +141,7 @@ class UpdateSerializer(serializers.ModelSerializer):
             'telefono',
             'datos',
             'bd_contacto',
+            'whatsapp',
         ]
 
     def es_campo_telefonico(self, field):
@@ -174,6 +180,10 @@ class UpdateSerializer(serializers.ModelSerializer):
         if telefono in data['datos']:
             telefono_val = data['datos'].pop(telefono)
             data['telefono'] = self.validar_telefono(telefono, telefono_val)
+        nombre_campo_whatsapp = metadata.nombre_campo_whatsapp
+        if nombre_campo_whatsapp in data['datos']:
+            whatsapp = data['datos'].pop(nombre_campo_whatsapp)
+            data['whatsapp'] = self.validar_telefono(nombre_campo_whatsapp, whatsapp)
         if set(data['datos'].keys()).issubset(set(campos_bd)):
             if not set(data['datos'].keys()).intersection(set(campos_no_editables))\
                     and not set(data['datos'].keys()).intersection(set(campos_ocultos)):
@@ -316,6 +326,7 @@ class ViewSet(viewsets.ViewSet):
                 field['block'] = name in campana.get_campos_no_editables()
                 field['hide'] = name in campana.get_campos_ocultos()
                 field['is_phone_field'] = index in metadata.columnas_con_telefono
+                field['is_whatsapp_field'] = index == metadata.columna_whatsapp
                 data.append(field)
             return response.Response(
                 data=get_response_data(

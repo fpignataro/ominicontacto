@@ -162,6 +162,7 @@ export default {
             contact: {
                 id: null,
                 phone: '',
+                whatsapp: '',
                 data: []
             }
         };
@@ -205,6 +206,8 @@ export default {
                     let value = null;
                     if (i === 0) {
                         value = this.contact?.phone;
+                    } else if (field['is_whatsapp_field']) {
+                        value = this.contact?.whatsapp;
                     } else {
                         value = this.contact?.id ? this.contact?.data[field.name] : null;
                     }
@@ -354,11 +357,13 @@ export default {
                 if (this.agtWhatsCoversationInfo.client.id !== null) {
                     this.contact.id = this.agtWhatsCoversationInfo.client.id;
                     this.contact.phone = this.agtWhatsCoversationInfo.client.phone || this.agtWhatsCoversationInfo.destination;
+                    this.contact.whatsapp = this.agtWhatsCoversationInfo.client.whatsapp || this.agtWhatsCoversationInfo.destination;
                     this.contact.data = this.agtWhatsCoversationInfo.client.data || [];
                 } else {
                     if (this.agtWhatsCoversationInfo.destination !== null) {
                         this.contact.id = null;
                         this.contact.phone = this.agtWhatsCoversationInfo.destination;
+                        this.contact.whatsapp = this.agtWhatsCoversationInfo.destination;
                         this.contact.data = [];
                     }
                 }
@@ -371,6 +376,7 @@ export default {
             handler () {
                 this.contact.id = this.previewContact?.id || null;
                 this.contact.phone = this.previewContact?.phone || '';
+                this.contact.whatsapp = this.previewContact?.whatsapp || '';
                 this.contact.data = this.previewContact?.data || [];
                 this.initFormData();
             },
