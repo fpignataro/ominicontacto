@@ -146,6 +146,10 @@ class CampanaManualCreateView(CampanaManualMixin, SessionWizardView):
 
         opciones_calificacion_formset = list(form_list)[int(self.OPCIONES_CALIFICACION) - offset]
         auto_grabacion = campana_form.cleaned_data['auto_grabacion']
+        auto_transcripcion = bool(campana_form.cleaned_data.get('auto_transcripcion'))
+        porcentaje_transcripcion = campana_form.cleaned_data.get('porcentaje_transcripcion')
+        if not auto_transcripcion:
+            porcentaje_transcripcion = None
 
         queue = Queue.objects.create(
             campana=campana,
@@ -160,7 +164,9 @@ class CampanaManualCreateView(CampanaManualMixin, SessionWizardView):
             setinterfacevar=True,
             weight=0,
             wait=120,
-            auto_grabacion=auto_grabacion)
+            auto_grabacion=auto_grabacion,
+            auto_transcripcion=auto_transcripcion,
+            porcentaje_transcripcion=porcentaje_transcripcion)
         opciones_calificacion_formset.instance = campana
         opciones_calificacion_formset.save()
         if interaccion_crm:
@@ -208,15 +214,24 @@ class CampanaManualUpdateView(CampanaManualMixin, SessionWizardView):
         campana = self.get_form_instance(step)
         if step == self.INICIAL:
             initial['auto_grabacion'] = campana.queue_campana.auto_grabacion
+            initial['auto_transcripcion'] = campana.queue_campana.auto_transcripcion
+            initial['porcentaje_transcripcion'] = (
+                campana.queue_campana.porcentaje_transcripcion)
         return initial
 
     def _save_forms(self, form_list, **kwargs):
         campana_form = list(form_list)[int(self.INICIAL)]
         campana_form.save()
         auto_grabacion = campana_form.cleaned_data['auto_grabacion']
+        auto_transcripcion = bool(campana_form.cleaned_data.get('auto_transcripcion'))
+        porcentaje_transcripcion = campana_form.cleaned_data.get('porcentaje_transcripcion')
+        if not auto_transcripcion:
+            porcentaje_transcripcion = None
         campana = campana_form.instance
         queue = campana.queue_campana
         queue.auto_grabacion = auto_grabacion
+        queue.auto_transcripcion = auto_transcripcion
+        queue.porcentaje_transcripcion = porcentaje_transcripcion
         queue.save()
         offset = 1
         if campana.whatsapp_habilitado:

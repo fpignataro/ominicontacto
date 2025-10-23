@@ -180,7 +180,9 @@ class CampanaFamily(AbstractRedisFamily):
             'VIDEOCALL': str(campana.videocall_habilitada),
             'SHOWDID': str(campana.mostrar_did),
             'SHOWINROUTENAME': str(campana.mostrar_nombre_ruta_entrante),
-            'SHOWCAMPNAME': campana.nombre if campana.mostrar_nombre else ""
+            'SHOWCAMPNAME': campana.nombre if campana.mostrar_nombre else "",
+            'TRANSCRIPTION_ENABLE': str(campana.queue_campana.auto_transcripcion),
+            'TRANSCRIPTION_PER': ""
         }
 
         if campana.queue_campana.timeout:
@@ -205,6 +207,10 @@ class CampanaFamily(AbstractRedisFamily):
                 settings.OML_AUDIO_FOLDER,
                 campana.queue_campana.audio_de_ingreso.get_filename_audio_asterisk())})
 
+        if campana.queue_campana.porcentaje_transcripcion is not None:
+            dict_campana['TRANSCRIPTION_PER'] = str(
+                campana.queue_campana.porcentaje_transcripcion)
+            
         if campana.sitio_externo:
             dict_campana.update({'IDEXTERNALURL': campana.sitio_externo.pk})
         else:

@@ -202,6 +202,9 @@ class CampanaPreviewTemplateCreateCampanaView(
             pk = self.kwargs.get('pk_campana_template', None)
             campana_template = get_object_or_404(Campana, pk=pk)
             initial['auto_grabacion'] = campana_template.queue_campana.auto_grabacion
+            initial['auto_transcripcion'] = campana_template.queue_campana.auto_transcripcion
+            initial['porcentaje_transcripcion'] = (
+                campana_template.queue_campana.porcentaje_transcripcion)
             initial['tiempo_desconexion'] = campana_template.tiempo_desconexion
         return initial
 

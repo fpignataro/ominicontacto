@@ -1087,6 +1087,8 @@ class CampanaManager(models.Manager):
             setinterfacevar=campana.queue_campana.setinterfacevar,
             wait=campana.queue_campana.wait,
             auto_grabacion=campana.queue_campana.auto_grabacion,
+            auto_transcripcion=campana.queue_campana.auto_transcripcion,
+            porcentaje_transcripcion=campana.queue_campana.porcentaje_transcripcion,
             detectar_contestadores=campana.queue_campana.detectar_contestadores,
             # TODO: OML-496
             announce=campana.queue_campana.announce,
@@ -1791,6 +1793,13 @@ class Queue(models.Model):
     wait = models.PositiveIntegerField(verbose_name='Tiempo de espera en cola')
     auto_grabacion = models.BooleanField(default=False,
                                          verbose_name='Grabar llamados')
+    auto_transcripcion = models.BooleanField(default=False,
+                                             verbose_name='Habilitar transcripción')
+    porcentaje_transcripcion = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(1), MaxValueValidator(100)],
+        verbose_name='Porcentaje de transcripción')
     detectar_contestadores = models.BooleanField(default=False)
     ep_id_wombat = models.IntegerField(null=True, blank=True)
 

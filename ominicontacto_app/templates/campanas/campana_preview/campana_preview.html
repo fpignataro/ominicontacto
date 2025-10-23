@@ -131,6 +131,19 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
             {{ form.auto_grabacion }}
             {{ form.auto_grabacion.errors }}
         </div>
+        <div class="col-md-3">
+            <label for="{{ form.auto_transcripcion.id_for_label }}">{% trans 'Habilitar transcripción:' %}</label>
+            {{ form.auto_transcripcion }}
+            {{ form.auto_transcripcion.errors }}
+        </div>
+        <div class="col-md-3">
+            <label for="{{ form.porcentaje_transcripcion.id_for_label }}">{% trans 'Porcentaje de transcripción:' %}</label>
+            {{ form.porcentaje_transcripcion }}
+            <small class="form-text text-muted">
+                {{ form.porcentaje_transcripcion.help_text }}
+            </small>
+            {{ form.porcentaje_transcripcion.errors }}
+        </div>        
         <div class="col-md-2">
             <label>{% trans 'Objetivo:' %}</label>
             {{ form.objetivo }}

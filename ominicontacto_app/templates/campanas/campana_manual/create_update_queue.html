@@ -85,6 +85,21 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
         </div>
     </div>
     <div class="form-group row">
+        {{ form.auto_transcripcion.errors }}
+        <label class="col-sm-3 control-label" for="{{ form.auto_transcripcion.id_for_label }}">{% trans 'Habilitar transcripción:' %}</label>
+        <div class="col-sm-3">
+              {{ form.auto_transcripcion }}
+        </div>
+    </div>
+    <div class="form-group row">
+        {{ form.porcentaje_transcripcion.errors }}
+        <label class="col-sm-3 control-label" for="{{ form.porcentaje_transcripcion.id_for_label }}">{% trans 'Porcentaje de transcripción:' %}</label>
+        <div class="col-sm-3">
+              {{ form.porcentaje_transcripcion }}
+              <small class="form-text text-muted">{{ form.porcentaje_transcripcion.help_text }}</small>
+        </div>
+    </div>    
+    <div class="form-group row">
         {{ form.detectar_contestadores.errors }}
         <label class="col-sm-4 control-label" for="{{ form.detectar_contestadores.id_for_label }}">{% trans 'Detectar contestadores:' %}</label>
         <div class="col-sm-3">

@@ -360,7 +360,8 @@ class QueueEntranteForm(forms.ModelForm):
     class Meta:
         model = Queue
         fields = ('name', 'timeout', 'retry', 'maxlen', 'wrapuptime', 'servicelevel',
-                  'strategy', 'weight', 'wait', 'auto_grabacion', 'campana',
+                  'strategy', 'weight', 'wait', 'auto_grabacion', 'auto_transcripcion',
+                  'porcentaje_transcripcion', 'campana',
                   'audios', 'announce_frequency', 'audio_de_ingreso', 'campana',
                   'tipo_destino_failover', 'destino_failover', 'ivr_breakdown',
                   'announce_holdtime', 'announce_position', 'musiconhold',
@@ -373,6 +374,7 @@ class QueueEntranteForm(forms.ModelForm):
             'wait': _('En segundos'),
             'wrapuptime': _('En segundos'),
             'wait_announce_frequency': _('En segundos'),
+            'porcentaje_transcripcion': _('Valule between 1 & 100'),
         }
         widgets = {
             'name': forms.HiddenInput(),
@@ -396,6 +398,8 @@ class QueueEntranteForm(forms.ModelForm):
             'musiconhold': forms.Select(attrs={'class': 'form-control'}),
             'wait_announce_frequency': forms.TextInput(attrs={'class': 'form-control'}),
             'audio_previo_conexion_llamada': forms.Select(attrs={'class': 'form-control'}),
+            'porcentaje_transcripcion': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 1, 'max': 100}),
         }
 
     def clean_maxlen(self):
@@ -440,6 +444,19 @@ class QueueEntranteForm(forms.ModelForm):
             raise forms.ValidationError(_('Debe ingresar una frecuencia de '
                                           'anuncios de espera/posición'))
         return wait_announce_frequency
+
+    def clean(self):
+        cleaned_data = super().clean()
+        auto_transcripcion = cleaned_data.get('auto_transcripcion')
+        porcentaje_transcripcion = cleaned_data.get('porcentaje_transcripcion')
+        if auto_transcripcion:
+            if porcentaje_transcripcion is None:
+                self.add_error(
+                    'porcentaje_transcripcion',
+                    _('Debe ingresar un porcentaje de transcripción'))
+        else:
+            cleaned_data['porcentaje_transcripcion'] = None
+        return cleaned_data
 
 
 class QueueMemberForm(forms.ModelForm):
@@ -1927,7 +1944,8 @@ class QueueDialerForm(forms.ModelForm):
     class Meta:
         model = Queue
         fields = ('name', 'maxlen', 'wrapuptime', 'servicelevel', 'strategy', 'weight',
-                  'wait', 'auto_grabacion', 'campana', 'detectar_contestadores', 'musiconhold',
+                  'wait', 'auto_grabacion', 'auto_transcripcion', 'porcentaje_transcripcion',
+                  'campana', 'detectar_contestadores', 'musiconhold',
                   'audio_para_contestadores', 'initial_predictive_model', 'initial_boost_factor',
                   'dial_timeout', 'tipo_destino_failover', 'tipo_destino_dialer',
                   'destino_failover', 'destino_dialer',
@@ -1943,6 +1961,8 @@ class QueueDialerForm(forms.ModelForm):
             "weight": forms.TextInput(attrs={'class': 'form-control'}),
             "wait": forms.TextInput(attrs={'class': 'form-control'}),
             "audio_para_contestadores": forms.Select(attrs={'class': 'form-control'}),
+            'porcentaje_transcripcion': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 1, 'max': 100}),
             "initial_boost_factor": forms.NumberInput(
                 attrs={'class': 'form-control', 'min': 0.1, 'max': 5}),
             "dial_timeout": forms.NumberInput(attrs={'class': 'form-control'}),
@@ -1961,10 +1981,12 @@ class QueueDialerForm(forms.ModelForm):
             definido en la ruta saliente. En segundos"""),
             'wrapuptime': _('En segundos'),
             'wait': _('En segundos'),
+            'porcentaje_transcripcion': _('Valor entre 1 y 100'),
         }
 
     def clean(self):
-        initial_boost_factor = self.cleaned_data.get('initial_boost_factor')
+        cleaned_data = super().clean()
+        initial_boost_factor = cleaned_data.get('initial_boost_factor')
         if initial_boost_factor and initial_boost_factor < 0.1:
             raise forms.ValidationError('El factor boost inicial no debe ser'
                                         ' menor a 0.1')
@@ -1972,17 +1994,27 @@ class QueueDialerForm(forms.ModelForm):
             raise forms.ValidationError('El factor boost inicial no debe ser'
                                         ' mayor a 5.0')
 
-        initial_predictive_model = self.cleaned_data.get('initial_predictive_model')
+        initial_predictive_model = cleaned_data.get('initial_predictive_model')
         if initial_predictive_model and not initial_boost_factor:
             raise forms.ValidationError('El factor boost inicial no deber ser'
                                         ' none si la predicitvidad está activa')
 
-        dial_timeout = self.cleaned_data.get('dial_timeout')
+        dial_timeout = cleaned_data.get('dial_timeout')
         if dial_timeout < 10 or dial_timeout > 90:
             raise forms.ValidationError(_('El valor de dial timeout deberá estar comprendido entre'
                                           ' 10 y 90 segundos'))
 
-        return self.cleaned_data
+        auto_transcripcion = cleaned_data.get('auto_transcripcion')
+        porcentaje_transcripcion = cleaned_data.get('porcentaje_transcripcion')
+        if auto_transcripcion:
+            if porcentaje_transcripcion is None:
+                self.add_error(
+                    'porcentaje_transcripcion',
+                    _('Debe ingresar un porcentaje de transcripción'))
+        else:
+            cleaned_data['porcentaje_transcripcion'] = None
+
+        return cleaned_data
 
     def clean_destino_failover(self):
         tipo_destino_failover = self.cleaned_data.get('tipo_destino_failover', None)
@@ -2082,6 +2114,13 @@ class CampanaSupervisorUpdateForm(forms.ModelForm):
 
 class CampanaManualForm(CampanaMixinForm, forms.ModelForm):
     auto_grabacion = forms.BooleanField(required=False, initial=True)
+    auto_transcripcion = forms.BooleanField(required=False)
+    porcentaje_transcripcion = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=100,
+        help_text=_('Valor entre 1 y 100'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}))
     detectar_contestadores = forms.BooleanField(required=False)
     campo_direccion_choice = forms.CharField(
         required=False, widget=forms.Select(attrs={'class': 'form-control'}))
@@ -2099,6 +2138,19 @@ class CampanaManualForm(CampanaMixinForm, forms.ModelForm):
             self.fields['nombre'].disabled = True
             self.fields['bd_contacto'].required = True
             # self.fields['tipo_interaccion'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        auto_transcripcion = cleaned_data.get('auto_transcripcion')
+        porcentaje_transcripcion = cleaned_data.get('porcentaje_transcripcion')
+        if auto_transcripcion:
+            if porcentaje_transcripcion is None:
+                self.add_error(
+                    'porcentaje_transcripcion',
+                    _('Debe ingresar un porcentaje de transcripción'))
+        else:
+            cleaned_data['porcentaje_transcripcion'] = None
+        return cleaned_data
 
     class Meta:
         model = Campana
@@ -2125,6 +2177,13 @@ class CampanaManualForm(CampanaMixinForm, forms.ModelForm):
 
 class CampanaPreviewForm(CampanaMixinForm, forms.ModelForm):
     auto_grabacion = forms.BooleanField(required=False, initial=True)
+    auto_transcripcion = forms.BooleanField(required=False)
+    porcentaje_transcripcion = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=100,
+        help_text=_('Valor entre 1 y 100'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 100}))
     campo_direccion_choice = forms.CharField(
         required=False, widget=forms.Select(attrs={'class': 'form-control'}))
     telefono_habilitado = forms.BooleanField(required=False, disabled=True)
@@ -2178,6 +2237,19 @@ class CampanaPreviewForm(CampanaMixinForm, forms.ModelForm):
         if not es_template and not bd_contacto.contactos.exists():
             raise forms.ValidationError(_('No puede seleccionar una BD vacia'))
         return bd_contacto
+
+    def clean(self):
+        cleaned_data = super().clean()
+        auto_transcripcion = cleaned_data.get('auto_transcripcion')
+        porcentaje_transcripcion = cleaned_data.get('porcentaje_transcripcion')
+        if auto_transcripcion:
+            if porcentaje_transcripcion is None:
+                self.add_error(
+                    'porcentaje_transcripcion',
+                    _('Debe ingresar un porcentaje de transcripción'))
+        else:
+            cleaned_data['porcentaje_transcripcion'] = None
+        return cleaned_data
 
 
 class EscogerCampanaForm(forms.Form):

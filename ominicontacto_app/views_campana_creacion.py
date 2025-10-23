@@ -110,6 +110,8 @@ class CampanaTemplateCreateCampanaMixin(object):
                 'announce_frequency': queue.announce_frequency,
                 'audio_de_ingreso': queue.audio_de_ingreso,
                 'auto_grabacion': queue.auto_grabacion,
+                'auto_transcripcion': queue.auto_transcripcion,
+                'porcentaje_transcripcion': queue.porcentaje_transcripcion,
                 'announce_holdtime': queue.announce_holdtime,
                 'announce_position': queue.announce_position,
                 'ivr_breakdown': queue.ivr_breakdown,
