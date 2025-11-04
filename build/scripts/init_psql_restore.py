@@ -3,23 +3,26 @@
 Restore de PostgreSQL desde S3/S3-compatible usando boto3.
 
 Flujo:
-1) Descarga s3://<bucket>/<key_prefix>/<BACKUP_FILENAME> a TMPDIR (por defecto /tmp)
+1) Descarga s3://<bucket>/<BACKUP_FILENAME> a TMPDIR (por defecto /tmp), donde
+   BACKUP_FILENAME es la clave completa del objeto (por ej. "backup/tenant/file.dump")
 2) Ejecuta `pg_restore` contra la base indicada
 
 Requisitos:
     pip install boto3
 
 Variables de entorno (principales):
-    BACKUP_FILENAME       (obligatoria)
+    BACKUP_FILENAME       (obligatoria)  -> clave completa en S3: "prefijo/archivo"
     S3_BUCKET_NAME        (obligatoria)
     AWS_ACCESS_KEY_ID     (obligatoria)
     AWS_SECRET_ACCESS_KEY (obligatoria)
     CALLREC_DEVICE        (s3-aws | s3-minio | s3-no-check-cert | otro)
     S3_ENDPOINT
     S3_ENDPOINT_MINIO
-    S3_KEY_PREFIX         (default: "backup/")
     TMPDIR                (default: "/tmp")
     TZ                    (opcional)
+    KEEP_LOCAL            (true/false, default: true)
+
+[Deprecated]: S3_KEY_PREFIX (ya no se usa)
 
 Conexión a Postgres:
     PGHOST, PGPORT (default 5432), PGUSER, PGDATABASE (obligatoria), PGPASSWORD
@@ -46,7 +49,6 @@ from typing import Optional
 import boto3
 from botocore.client import Config as BotoConfig
 
-
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -63,7 +65,7 @@ def _tz_setup() -> None:
         try:
             time.tzset()  # type: ignore[attr-defined]
             logger.debug("Timezone seteada a %s", tz)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("No se pudo setear TZ con tzset(): %s", exc)
 
 
@@ -108,7 +110,7 @@ def build_s3_client():
         addressing_style = "path"
 
     s3_config = BotoConfig(
-        s3={"addressing_style": addressing_style, "signature_version": "s3v4"}
+        s3={"addressing_style": addressing_style, "signature_version": "s3v4"},
     )
 
     session = boto3.session.Session(
@@ -117,7 +119,10 @@ def build_s3_client():
         region_name=region,
     )
     client = session.client(
-        "s3", endpoint_url=endpoint_url, verify=verify, config=s3_config
+        "s3",
+        endpoint_url=endpoint_url,
+        verify=verify,
+        config=s3_config,
     )
 
     logger.info(
@@ -133,20 +138,24 @@ def build_s3_client():
 def download_from_s3(
     client,
     bucket: str,
-    backup_filename: str,
+    s3_key: str,
     dest_dir: Path,
-    key_prefix: str = "backup/",
 ) -> Path:
-    """Descarga el backup desde S3 al directorio destino y devuelve la ruta local."""
-    key_prefix = key_prefix.rstrip("/") + "/"
-    key = f"{key_prefix}{backup_filename}"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    local_path = dest_dir / backup_filename
+    """
+    Descarga el backup desde S3 al directorio destino y devuelve la ruta local.
 
-    logger.info("Descargando s3://%s/%s -> %s", bucket, key, local_path)
+    Parámetros:
+        s3_key: clave completa del objeto en S3 (ej: "backup/tenant/file.dump")
+    """
+    # Guardamos localmente solo el nombre de archivo, sin subdirectorios.
+    local_filename = Path(s3_key).name
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    local_path = dest_dir / local_filename
+
+    logger.info("Descargando s3://%s/%s -> %s", bucket, s3_key, local_path)
     try:
-        client.download_file(Bucket=bucket, Key=key, Filename=str(local_path))
-    except Exception as exc:
+        client.download_file(Bucket=bucket, Key=s3_key, Filename=str(local_path))
+    except Exception as exc:  # noqa: BLE001
         logger.error("Fallo la descarga desde S3: %s", exc)
         sys.exit(6)
 
@@ -154,9 +163,8 @@ def download_from_s3(
         logger.error("El archivo descargado no existe o está vacío: %s", local_path)
         sys.exit(7)
 
-    logger.info(
-        "Descarga OK (%0.2f MB): %s", local_path.stat().st_size / 1e6, local_path
-    )
+    size_mb = local_path.stat().st_size / 1e6
+    logger.info("Descarga OK (%0.2f MB): %s", size_mb, local_path)
     return local_path
 
 
@@ -217,8 +225,8 @@ def main() -> None:
     _tz_setup()
 
     bucket = _require("S3_BUCKET_NAME")
-    backup_filename = _require("BACKUP_FILENAME")
-    key_prefix = os.getenv("S3_KEY_PREFIX", "backup/")
+    # BACKUP_FILENAME ahora es la CLAVE COMPLETA del objeto en S3.
+    s3_key = _require("BACKUP_FILENAME")
     tmp_dir = Path(os.getenv("TMPDIR", "/tmp")).resolve()
     keep_local = os.getenv("KEEP_LOCAL", "true").lower() == "true"
 
@@ -226,9 +234,8 @@ def main() -> None:
     local_path = download_from_s3(
         client=s3_client,
         bucket=bucket,
-        backup_filename=backup_filename,
+        s3_key=s3_key,
         dest_dir=tmp_dir,
-        key_prefix=key_prefix,
     )
 
     try:
@@ -238,7 +245,7 @@ def main() -> None:
             try:
                 local_path.unlink(missing_ok=True)
                 logger.info("Archivo local eliminado: %s", local_path)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("No se pudo eliminar el archivo local: %s", exc)
 
 
