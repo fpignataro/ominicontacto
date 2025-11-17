@@ -145,6 +145,8 @@ class ApiAppConfig(AppConfig):
              'roles': ['Administrador', ]},
             {'nombre': 'api_wombat_stop',
              'roles': ['Administrador', ]},
+            {'nombre': 'supervision_wombat_dialer_stats',
+             'roles': ['Administrador', 'Gerente', 'Supervisor']},
             {'nombre': 'api_agents_campaign',
              'roles': ['Administrador', 'Gerente', 'Supervisor']},
             {'nombre': 'api_update_campaign_agents',
@@ -479,6 +481,9 @@ class ApiAppConfig(AppConfig):
         'api_wombat_stop':
             {'descripcion': _('Stop servicio Dialer'),
              'version': '2.4.4'},
+        'supervision_wombat_dialer_stats':
+            {'descripcion': _('supervision_wombat_dialer_stats'),
+             'version': '2.6.2'},
         'api_agents_campaign':
             {'descripcion': _('Lista de agentes por campaña'),
              'version': '1.19.0'},

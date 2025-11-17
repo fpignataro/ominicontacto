@@ -35,6 +35,7 @@ class CallDataGenerator(object):
     # Keys de los valores en Redis a regenerar
     CALLDATA_CAMP_KEY = 'OML:CALLDATA:CAMP:{0}'
     CALLDATA_WAIT_KEY = 'OML:CALLDATA:WAIT-TIME:CAMP:{0}'
+    CALLDATA_ABANDON_TIME = 'OML:CALLDATA:ABANDON-TIME:CAMP:{0}'
     # CALLDATA_AGENT_KEY = 'OML:CALLDATA:AGENT:{0}'
     CALLDATA_QUEUE_SIZE_KEY = 'OML:CALLDATA:QUEUE-SIZE:{0}'
     CALLDATA_QUEUE_KEY = 'OML:CALLDATA:QUEUE:{0}'
@@ -44,6 +45,7 @@ class CallDataGenerator(object):
         'COMPLETEAGENT', 'COMPLETEOUTNUM', 'BT-TRY', 'BTOUT-TRY',
         'CAMPT-COMPLETE', 'CAMPT-FAIL', 'COMPLETE-CAMPT', 'CT-COMPLETE', 'CTOUT-COMPLETE'
     ]
+    EVENTOS_ABANDONO = ['ABANDON', 'ABANDONWEL']
 
     def __init__(self, redis_connection=None) -> None:
         self._redis_connection = redis_connection
@@ -62,6 +64,7 @@ class CallDataGenerator(object):
             self.CALLDATA_WAIT_KEY,
             # self.CALLDATA_AGENT_KEY,
             self.WHATSAPP_CAMP_KEY,
+            self.CALLDATA_ABANDON_TIME,
         ]
         for base_key in base_keys:
             keys = self.redis_connection.keys(base_key.format('*'))
@@ -84,7 +87,7 @@ class CallDataGenerator(object):
     def regenerar(self):
         self.eliminar_datos()
         self.regenerar_eventos_por_campana()
-        self.regenerar_wait_times()
+        self.regenerar_wait_and_abandon_times()
         # Actualmente no se genera ni se usa esta estadística
         # self.regenerar_eventos_por_agente()
 
@@ -115,17 +118,31 @@ class CallDataGenerator(object):
             camp_key = self.CALLDATA_CAMP_KEY.format(campana_id)
             self.redis_connection.hset(camp_key, mapping=eventos)
 
-    def regenerar_wait_times(self):
+    def regenerar_wait_and_abandon_times(self):
         wait_times_por_campana = {}
+        abandon_times_por_campana = {}
         llamadas = LlamadaLog.objects.using('replica')\
             .filter(time__gt=self.desde,
                     event__in=self.EVENTOS_FIN_CONEXION_ORIGINAL)\
             .exclude(agente_id=-1)
         for log in llamadas:
-            if log.campana_id not in wait_times_por_campana:
-                wait_times_por_campana[log.campana_id] = []
-            wait_times_por_campana[log.campana_id].append(log.bridge_wait_time)
+            if log.event in self.EVENTOS_FIN_CONEXION_ORIGINAL and log.agente_id != -1:
+                if log.campana_id not in wait_times_por_campana:
+                    wait_times_por_campana[log.campana_id] = []
+                wait_times_por_campana[log.campana_id].append(log.bridge_wait_time)
+            if log.event in self.EVENTOS_ABANDONO:
+                if log.campana_id not in abandon_times_por_campana:
+                    abandon_times_por_campana[log.campana_id] = []
+                abandon_times_por_campana[log.campana_id].append(log.bridge_wait_time)
+
+        pipe = self.redis_connection.pipeline(transaction=False)
 
         for campana_id, wait_times in wait_times_por_campana.items():
             key = self.CALLDATA_WAIT_KEY.format(campana_id)
             self.redis_connection.rpush(key, *wait_times)
+
+        for campana_id, abandon_times in abandon_times_por_campana.items():
+            key = self.CALLDATA_ABANDON_TIME.format(campana_id)
+            self.redis_connection.rpush(key, *abandon_times)
+
+        pipe.execute()

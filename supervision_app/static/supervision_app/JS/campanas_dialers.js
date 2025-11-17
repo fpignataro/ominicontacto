@@ -28,9 +28,12 @@ var agentes = {};
 var campanas_supervisor = [];
 var campanas_id_supervisor = [];
 const MENSAJE_CONEXION_WEBSOCKET = 'Stream subscribed!';
+var wombat_enabled = false;
+let POLL_DELAY = 30 * 1000;
 
 $(function() {
     campaigns = JSON.parse(document.getElementById('campaigns-data').textContent);
+    wombat_enabled = JSON.parse(document.getElementById('wombat_enabled').textContent);
  
     campanas_supervisor = $('input#campanas_list').val().split(',');
     if (campanas_supervisor.length == 1 && campanas_supervisor[0] == '') {
@@ -81,6 +84,9 @@ function initializeTable(initial_data){
     }
     table_dialers.clear();
     table_dialers.rows.add(table_data).draw();
+    if (wombat_enabled){
+        setTimeout(pollWombatStats, POLL_DELAY);
+    }
 }
 
 function updateTable(event_data){
@@ -99,13 +105,16 @@ function updateTable(event_data){
             updatePending(row_data, data);
         }
         else if (field == 'status') {
-            updateStatus(row_data, data);
+            row_data.status = data.value;
         }
         else {
             row_data[field] = Number(row_data[field]) + delta;
             if (field == 'dispositions'){
                 updateTarget(camp_id, row_data);
             }
+        }
+        if (field == 'dialed' && Number.isFinite(data.channels)){
+            row_data.channels = data.channels;
         }
         row.data(row_data).draw();
     }
@@ -121,6 +130,7 @@ function updateTarget(camp_id, camp_data){
 }
 
 function updatePending(camp_data, data){
+    /** Only for OMniDialer */
     if (data.pending_initial !== undefined){
         camp_data.pending_initial = Number(data.pending_initial);
         camp_data.pending = camp_data.pending_initial + camp_data.pending_retries;
@@ -129,14 +139,36 @@ function updatePending(camp_data, data){
         camp_data.pending_retries = Number(data.pending_retries);
         camp_data.pending = camp_data.pending_initial + camp_data.pending_retries;
     }
-    if (data.pending !== undefined){  /** Wombat? */
-        camp_data.pending = Number(data.pending);
-    }
 }
 
-function updateStatus(camp_data, data){
-    camp_data.status = data.value;
+function pollWombatStats() {
+    let url = Urls.supervision_wombat_dialer_stats();
+    $.get(url).success(
+        function(data) {
+            if (data['status'] == 'OK'){
+                // Asumo que vienen los status de todas las campañas
+                for (let id in data['statuses']){
+                    let camp_name = campaigns[id].name;
+                    let row = table_dialers.row((idx, data) => data.name === camp_name);
+                    let row_data=row.data();
+
+                    row_data.status = data['statuses'][id];
+                    let pending = data['pendings'][id];
+                    if (Number.isFinite(pending)){
+                        row_data.pending = pending;
+                    }
+                    let channels = data['channels'][id];
+                    if (Number.isFinite(channels)){
+                        row_data['channels'] = channels;
+                    }
+                    row.data(row_data).draw();
+                }
+            }
+        }
+    );
+    setTimeout(pollWombatStats, POLL_DELAY);
 }
+
 
 /** TODO: Dejar de procesar datos de agentes desde el stream. */
 function connectToSupervisorStream(){
