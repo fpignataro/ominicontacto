@@ -67,7 +67,7 @@ class CallDataGeneratorTests(OMLBaseTest):
         max_duracion = min_duracion + len(CallDataGenerator.EVENTOS_FIN_CONEXION_ORIGINAL) - 1
 
         generador = CallDataGenerator(create_redis_connection())
-        generador.regenerar_wait_times()
+        generador.regenerar_wait_and_abandon_times()
         args, kwargs = sadd.call_args
         key = args[0]
         duraciones_registradas = list(args[1:len(args)])

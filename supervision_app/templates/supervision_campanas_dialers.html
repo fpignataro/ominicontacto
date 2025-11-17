@@ -43,6 +43,7 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
         <input id="supervisor_id" type="hidden" value="{{supervisor_id}}">
         <input id="campanas_list" type="hidden" value="{{nombres_campanas}}">
         <input id="campanas_list_id" type="hidden" value="{{campanas_ids}}">
+        {{ wombat_enabled|json_script:"wombat_enabled" }}
         {{ campanas | json_script:"campaigns-data" }}
 
         <table class="table" id="tableDialers">

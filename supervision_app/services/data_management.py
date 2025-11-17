@@ -17,7 +17,7 @@
 
 from ominicontacto_app.models import Campana
 from reportes_app.models import LlamadaLog
-from ominicontacto_app.services.dialer import wombat_habilitado
+from ominicontacto_app.services.dialer import wombat_habilitado, get_dialer_service
 from ominicontacto_app.services.redis.connection import create_redis_connection
 
 
@@ -40,6 +40,7 @@ class SupervisionDataManager:
         self.inbound = InboundDataManager(redis_oml_connection, redis_calldata_connection)
 
     def add_subscription(self, user, section):
+        # print('Subscribing: ', user)
         campaigns = self._current_campaigns(user)
         if section == self.AGENTS:
             initial_data = self.agents.subscribe(campaigns, user)
@@ -52,6 +53,7 @@ class SupervisionDataManager:
         return initial_data
 
     def remove_subscription(self, user, section):
+        # print('Unsubscribing: ', user)
         campaigns = self._current_campaigns(user)
         if section == self.AGENTS:
             self.agents.unsubscribe(campaigns, user)
@@ -107,6 +109,8 @@ class DialerDataManager(AbstractDataManager):
         + LlamadaLog.EVENTOS_NO_DIALOGO
     PENDING_RETRIES = 'NO CONTACTS WITH PENDING ATTEMPTS'
     PENDING_INITIAL = 'PENDING_INITIAL_CONTACT_ATTEMPTS'
+    ENDING_EVENTS = [f'CALL_TYPE:{Campana.TYPE_DIALER}:{event}' for event in
+                     LlamadaLog.EVENTOS_FIN_CONEXION + list(LlamadaLog.EVENTOS_NO_CONEXION)]
 
     def __init__(self, redis_oml_connection, redis_calldata_connection):
         super().__init__(redis_oml_connection, redis_calldata_connection)
@@ -121,7 +125,15 @@ class DialerDataManager(AbstractDataManager):
 
         campaigns = campaigns.filter(type=Campana.TYPE_DIALER).filter(
             estado__in=[Campana.ESTADO_ACTIVA, Campana.ESTADO_PAUSADA, Campana.ESTADO_INACTIVA])
+
+        # TODO: Se pueden optimizar las llamadas a Redis utilizando Pipelines o llamando
+        # a MGET en vez de multiples GET por ejemplo.
+        precomputations = self._precomputate_initial_values(campaigns)
+
+        campaigns_by_id = {}
         for campaign in campaigns:
+
+            campaigns_by_id[campaign.id] = campaign
             # Call Events
             for event in self.CALL_EVENTS:
                 event_code = f'CAMP:{campaign.id}:{event}'
@@ -143,7 +155,13 @@ class DialerDataManager(AbstractDataManager):
                 key = get_event_subscription_key(event_code)
                 self.redis_calldata_connection.sadd(key, manager_id)
 
-            initial_data[campaign.id] = self._get_initial_data(campaign)
+            initial_data[campaign.id] = self._get_initial_data(campaign, precomputations)
+
+        if wombat_habilitado():
+            # Uso servicio de Wombat para obtener las llamadas pendientes
+            dialer_service = get_dialer_service()
+            pendings_by_id = dialer_service.obtener_llamadas_pendientes_por_id(campaigns_by_id)
+            self._set_wombat_pendings(initial_data, pendings_by_id)
 
         # TODO Analizar solo enviar data de campañas con datos
         return initial_data
@@ -177,9 +195,36 @@ class DialerDataManager(AbstractDataManager):
                 key = get_event_subscription_key(event_code)
                 self.redis_calldata_connection.srem(key, manager_id)
 
-    def _get_initial_data(self, campaign):
-        calldata_key = 'OML:CALLDATA:CAMP:{0}'.format(campaign.id)
-        response = self.redis_calldata_connection.hgetall(calldata_key)
+    def get_campaigns_calldata(self, campaigns):
+        campaign_ids = []
+        calldata_keys = []
+        for campaign in campaigns:
+            campaign_ids.append(campaign.id)
+            calldata_keys.append('OML:CALLDATA:CAMP:{0}'.format(campaign.id))
+
+        pipeline = self.redis_calldata_connection.pipeline()
+        for key in calldata_keys:
+            pipeline.hgetall(key)
+        calldata_results = pipeline.execute()
+
+        return dict(zip(campaign_ids, calldata_results))
+
+    def _precomputate_initial_values(self, campaigns):
+        # Agrupar requests a Redis para reducir cantidad de requests
+        precomputations = {
+            'calldata': {},
+            'channels': {}
+        }
+        calldata_by_id = self.get_campaigns_calldata(campaigns)
+        precomputations['calldata'] = calldata_by_id
+
+        if wombat_habilitado():
+            for id, calldata in calldata_by_id.items():
+                precomputations['channels'][id] = self.compute_channels_from_calldata(calldata)
+
+        return precomputations
+
+    def _get_initial_data(self, campaign, precomputations):
         dialed = 0
         attended = 0
         not_attended = 0
@@ -189,14 +234,9 @@ class DialerDataManager(AbstractDataManager):
         pending = 0
         status = campaign.estado
 
-        # in_call = 0   # TODO: Se puede calcular llamadas en curso haciendo:
-        #               'DIAL' + 'ANSWER' + 'CONNECT' + 'ENTERQUEUE'
-        #               - EVENTOS_NO_CONEXION - EVENTOS_FIN_CONEXION
-        #    Agregar DISCLAIMER: Posiblemente con transferencias la linea siga "ocupada" pero no
-        #                     cuente como conectada...
-
+        calldata = precomputations['calldata'][campaign.id]
         # Get CALLDATA sums
-        for key, value in response.items():
+        for key, value in calldata.items():
             _key = key.split(':')  # CALL_TYPE:<call_type>:<event>
             if _key[1] == str(LlamadaLog.LLAMADA_DIALER):  # call_type
                 event = _key[-1]
@@ -211,6 +251,8 @@ class DialerDataManager(AbstractDataManager):
                     if event == 'AMD':
                         amd = value
         # Get dispositions
+        # TODO: Optimizar precalculando todas las DISPOSITIONDATA-> Engaged por id
+        #       dispositions = precomputations['calldata'][campaign.id]
         dispositiondata_key = 'OML:DISPOSITIONDATA:CAMP:{0}'.format(campaign.id)
         response = self.redis_calldata_connection.hget(dispositiondata_key, 'ENGAGED')
         if response:
@@ -230,14 +272,14 @@ class DialerDataManager(AbstractDataManager):
 
         # Get pending
         if not wombat_habilitado():
+            # TODO: Optimizar precalculando CAMP:{0}:COUNTER ->PENDING... x id
             pending_initial, pending_retries = self._get_omnidialer_pending(campaign)
             initial_data['pending_initial'] = pending_initial
             initial_data['pending_retries'] = pending_retries
             initial_data['pending'] = pending_initial + pending_retries
             initial_data['channels'] = self._get_omnidialer_channels(campaign)
         else:
-            initial_data['pending'] = self._get_wombat_pending(campaign)
-
+            initial_data['channels'] = precomputations['channels'][campaign.id]
         return initial_data
 
     def _get_omnidialer_pending(self, campaign):
@@ -249,21 +291,41 @@ class DialerDataManager(AbstractDataManager):
         retries = int(retries) if retries else 0
         return [initial, retries]
 
-    def _get_wombat_pending(self, campaign):
-        return '-'  # TODO
-
     def _get_omnidialer_channels(self, campaign):
         CAMP_CHANNELS_KEY = 'OML:CALLS:{0}:DIALER'
         key = CAMP_CHANNELS_KEY.format(campaign.id)
         calls = self.redis_dialer_connection.get(key)
         return int(calls) if calls else 0
 
+    def _set_wombat_pendings(self, initial_data, pendings_by_id):
+        """ Copies pending data in initial_data for each campaign from pendings_by id"""
+        for id, data in initial_data.items():
+            data['pending'] = pendings_by_id.get(id, '-')
+
+    def get_channels_from_calldata(self, campaign_id):
+        """ Fetchs campign CALLDATA to calculate channels in use """
+        key = 'OML:CALLDATA:CAMP:{0}'.format(campaign_id)
+        calldata = self.redis_calldata_connection.hgetall(key)
+        return self.compute_channels_from_calldata(calldata)
+
+    def compute_channels_from_calldata(self, calldata):
+        dialed = int(calldata.get(f'CALL_TYPE:{Campana.TYPE_DIALER}:DIAL', 0))
+        finished = 0
+        for key, value in calldata.items():
+            if key in self.ENDING_EVENTS:
+                finished += int(value)
+        active = dialed - finished
+        return max(active, 0)
+
     def update(self, event_data):
         if event_data['type'] == 'CAMP':
             if event_data['call_type'] != str(LlamadaLog.LLAMADA_DIALER):
                 return
             if event_data['event'] == 'DIAL':
-                return {'campaign_id': event_data['id'], 'field': 'dialed'}
+                data = {'campaign_id': event_data['id'], 'field': 'dialed'}
+                if wombat_habilitado():
+                    data['channels'] = self.get_channels_from_calldata(event_data['id'])
+                return data
             if event_data['event'] == 'CONNECT':
                 return {'campaign_id': event_data['id'], 'field': 'attended'}
             if event_data['event'] in LlamadaLog.EVENTOS_NO_CONTACTACION:
@@ -285,7 +347,7 @@ class DialerDataManager(AbstractDataManager):
                     'field': 'dispositions',
                     'delta': delta
                 }
-        if event_data['type'] == 'STATS':
+        if event_data['type'] == 'STATS':  # OMniDialer Only
             update_data = {'campaign_id': event_data['camp_id'], }
             if self.PENDING_INITIAL in event_data:
                 update_data['field'] = 'pending'
@@ -304,44 +366,6 @@ class DialerDataManager(AbstractDataManager):
                            'field': 'channels',
                            'channels': event_data['calls']}
             return update_data
-
-    # ================================================
-    # TODO: ESTE CODIGO QUEDA COMO REFERENCIA DE COMO SE CALCULABA ANTES - Borrarlo
-    # def _contabilizar_llamadas_pendientes(self):
-    #     dialer_service = get_dialer_service()
-    #     pendientes_por_id = dialer_service.obtener_llamadas_pendientes_por_id(self.campanas)
-    #     for campana_id, pendientes in pendientes_por_id.items():
-    #         if campana_id not in self.estadisticas:
-    #             self._inicializar_conteo_de_campana(campana_id)
-    #         self.estadisticas[campana_id]['pendientes'] = pendientes
-
-    # def _contabilizar_llamadas_en_curso(self):
-    #     campanas_ids = []
-    #     for campana_id, campana in self.campanas.items():
-    #         if campana.estado == Campana.ESTADO_ACTIVA:
-    #             campanas_ids.append(str(campana_id))
-    #     if not campanas_ids:
-    #         return
-    #     campanas_ids = ','.join(campanas_ids)
-
-    #     # Busco llamadas cuyo ultimo evento sea de llamada en curso
-    #     sql = """
-    #         SELECT l1.campana_id, COUNT(*) from reportes_app_llamadalog l1
-    #         WHERE l1.event IN ('DIAL', 'ANSWER', 'CONNECT', 'ENTERQUEUE') AND l1.id IN (
-    #             SELECT MAX(l2.id) FROM reportes_app_llamadalog l2
-    #             WHERE l2.campana_id in ({0}) AND l2.tipo_llamada = '{1}' AND
-    #             l2.time BETWEEN %(fecha_desde)s AND %(fecha_hasta)s
-    #             GROUP BY l2.callid
-    #           )
-    #         GROUP BY l1.campana_id;
-    #     """.format(campanas_ids, str(Campana.TYPE_DIALER))
-    #     params = {'fecha_desde': self.desde, 'fecha_hasta': self.hasta}
-    #     cursor = connection.cursor()
-    #     cursor.execute(sql, params)
-    #     values = cursor.fetchall()
-    #     for campana_id, cantidad in values:
-    #         self.estadisticas[campana_id]['canales_discando'] = cantidad
-    # ================================================
 
 
 class InboundDataManager(AbstractDataManager):

@@ -25,6 +25,7 @@ from ominicontacto_app.forms.base import GrupoAgenteForm
 
 from ominicontacto_app.models import Campana, Grupo, AgenteProfile
 from supervision_app.services.redisgears_service import RedisGearsService
+from ominicontacto_app.services.dialer import wombat_habilitado
 
 
 class SupervisionAgentesView(AddSettingsContextMixin, TemplateView):
@@ -119,6 +120,7 @@ class SupervisionCampanasDialerView(TemplateView):
         context['nombres_campanas'] = ",".join([x.nombre for x in campanas])
         context['campanas_ids'] = ",".join([str(x.id) for x in campanas])
         context['campanas'] = {x.id: {'name': x.nombre, 'target': x.objetivo} for x in campanas}
+        context['wombat_enabled'] = wombat_habilitado()
 
         # TODO: Datos de Agente por ahora sigue igual
         RedisGearsService().registra_stream_supervisor_dialers(supervisor.id)
