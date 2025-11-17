@@ -8,14 +8,14 @@
 #
 
 
-def is_out_of_time(line, timestamp):
-    if line.horario:
+def is_out_of_time(obj, timestamp):
+    if obj.horario:
         time = timestamp.time()
         weekday = timestamp.weekday()
         monthday = timestamp.day
         month = timestamp.month
         print(time, weekday, monthday, month)
-        validaciones_tiempo = line.horario.validaciones_tiempo.all()
+        validaciones_tiempo = obj.horario.validaciones_tiempo.all()
         for validacion in validaciones_tiempo:
             print(validacion.dia_semana_final)
             if validacion.tiempo_inicial is not None and validacion.tiempo_inicial > time:
