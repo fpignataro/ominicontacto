@@ -56,5 +56,8 @@ echo "Init uWSGI"
 exec /usr/local/bin/uwsgi \
     --ini "${INSTALL_PREFIX}/run/oml_uwsgi.ini" \
     --http-socket "${DJANGO_HOSTNAME}:${UWSGI_PORT}" \
-    --stats "${DJANGO_HOSTNAME}:9191" \
+    --plugins "${UWSGI_PROMETHEUS_PLUGIN:-prometheus}" \
+    --prometheus-socket "${UWSGI_PROMETHEUS_SOCKET:-0.0.0.0:9191}" \
+    --enable-metrics \
+    --stats "${UWSGI_STATS_SOCKET:-${DJANGO_HOSTNAME}:9190}" \
     --stats-http
