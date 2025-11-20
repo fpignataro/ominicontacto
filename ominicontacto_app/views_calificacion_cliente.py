@@ -58,7 +58,7 @@ from configuracion_telefonia_app.models import DestinoEntrante
 from reportes_app.models import LlamadaLog
 from notification_app.notification import AgentNotifier
 
-
+import time
 logger = logging_.getLogger(__name__)
 
 
@@ -334,6 +334,14 @@ class CalificacionClienteFormView(FormView):
         return self._formulario_llamada_entrante()
 
     def get(self, request, *args, **kwargs):
+        ##
+        t0 = time.time()
+        deb_data = 'X - '
+        if self.contacto:
+            deb_data = f'{self.contacto.id} - '
+        if self.call_data and 'call_id' in self.call_data:
+            deb_data += self.call_data['call_id']
+        ##
         formulario_llamada_entrante = self._formulario_llamada_entrante()
         mostrar_historico = self._mostrar_historico()
         contacto_form = self.get_contacto_form(usar_crm=True)
@@ -347,6 +355,8 @@ class CalificacionClienteFormView(FormView):
                 'nombre', flat=True)
         ]
         calificaciones_telefonos_formset = None
+        t1 = time.time()
+        logger.warning(f'CalificacionClienteFormView->get@{deb_data}  t1: ' + "%.2f" % (t1 - t0))
         if self.campana.permitir_calificar_telefonos:
             calificaciones_telefonos_qs = CalificacionTelefono.objects.filter(
                 campana=self.campana, contacto=self.contacto)
@@ -381,6 +391,9 @@ class CalificacionClienteFormView(FormView):
                     initial=initial_data,
                     queryset=CalificacionTelefono.objects.none(),
                 )
+        t2 = time.time()
+        logger.warning(f'CalificacionClienteFormView->get@{deb_data}  t2: ' + "%.2f" % (t2 - t1))
+
         force_disposition = False
         extra_client_data = {}
         if self.call_data:
@@ -402,6 +415,8 @@ class CalificacionClienteFormView(FormView):
             calificacion_llamada.create_family(self.agente, self.call_data,
                                                self.kwargs['call_data_json'], calificado=False,
                                                gestion=False, id_calificacion=None)
+        t3 = time.time()
+        logger.warning(f'CalificacionClienteFormView->get@{deb_data}  t3: ' + "%.2f" % (t3 - t2))
         if calificacion_form.instance and kwargs['from'] == 'recalificacion':
             sitio_externo = self.campana.sitio_externo
             if calificacion_form.instance.opcion_calificacion.interaccion_crm and \
@@ -420,6 +435,9 @@ class CalificacionClienteFormView(FormView):
                 self.configuracion_sitio_externo = \
                     sitio_externo.get_configuracion_de_interaccion(
                         agente, self.campana, self.contacto, call_data)
+
+        t4 = time.time()
+        logger.warning(f'CalificacionClienteFormView->get@{deb_data}  t4: ' + "%.2f" % (t4 - t3))
 
         return self.render_to_response(self.get_context_data(
             contacto=self.contacto,
